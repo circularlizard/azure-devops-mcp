@@ -6,6 +6,7 @@ import { WebApi } from "azure-devops-node-api";
 import { z } from "zod";
 import { TreeStructureGroup, TreeNodeStructureType, WorkItemClassificationNode } from "azure-devops-node-api/interfaces/WorkItemTrackingInterfaces.js";
 import { elicitProject, elicitTeam } from "../shared/elicitations.js";
+import { READ_ONLY_ANNOTATIONS, WRITE_CREATE_ANNOTATIONS, WRITE_UPDATE_ANNOTATIONS } from "../shared/tool-annotations.js";
 
 const WORK_TOOLS = {
   work: "work",
@@ -14,24 +15,27 @@ const WORK_TOOLS = {
 };
 
 function configureWorkTools(server: McpServer, _: () => Promise<string>, connectionProvider: () => Promise<WebApi>) {
-  server.tool(
+  server.registerTool(
     WORK_TOOLS.work,
-    "Retrieve work-related data for a project or team. Use the action parameter to specify the operation.",
     {
-      action: z
-        .enum(["list_iterations", "list_team_iterations", "get_team_settings", "get_team_capacity", "get_iteration_capacities"])
-        .describe(
-          "The action to perform. Options: list_iterations (list all iterations in a project), list_team_iterations (list iterations assigned to a team), get_team_settings (get team settings including default iteration and area path), get_team_capacity (get team capacity for an iteration), get_iteration_capacities (get capacity for all teams in an iteration)."
-        ),
-      project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
-      team: z
-        .string()
-        .optional()
-        .describe("The name or ID of the Azure DevOps team. Required for list_team_iterations, get_team_settings, and get_team_capacity. Reuse from prior context if already known."),
-      iterationId: z.string().optional().describe("The Iteration ID. Required for get_team_capacity and get_iteration_capacities."),
-      timeframe: z.enum(["current"]).optional().describe("The timeframe for list_team_iterations. Only 'current' is supported."),
-      depth: z.coerce.number().default(2).describe("Depth of children to fetch. Used for list_iterations. Defaults to 2."),
-      excludedIds: z.array(z.coerce.number().min(1)).optional().describe("An optional array of iteration IDs, and their children, to exclude from results. Used for list_iterations."),
+      description: "Retrieve work-related data for a project or team. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["list_iterations", "list_team_iterations", "get_team_settings", "get_team_capacity", "get_iteration_capacities"])
+          .describe(
+            "The action to perform. Options: list_iterations (list all iterations in a project), list_team_iterations (list iterations assigned to a team), get_team_settings (get team settings including default iteration and area path), get_team_capacity (get team capacity for an iteration), get_iteration_capacities (get capacity for all teams in an iteration)."
+          ),
+        project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
+        team: z
+          .string()
+          .optional()
+          .describe("The name or ID of the Azure DevOps team. Required for list_team_iterations, get_team_settings, and get_team_capacity. Reuse from prior context if already known."),
+        iterationId: z.string().optional().describe("The Iteration ID. Required for get_team_capacity and get_iteration_capacities."),
+        timeframe: z.enum(["current"]).optional().describe("The timeframe for list_team_iterations. Only 'current' is supported."),
+        depth: z.coerce.number().default(2).describe("Depth of children to fetch. Used for list_iterations. Defaults to 2."),
+        excludedIds: z.array(z.coerce.number().min(1)).optional().describe("An optional array of iteration IDs, and their children, to exclude from results. Used for list_iterations."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ action, project, team, iterationId, timeframe, depth, excludedIds }) => {
       try {
@@ -245,24 +249,27 @@ function configureWorkTools(server: McpServer, _: () => Promise<string>, connect
     }
   );
 
-  server.tool(
+  server.registerTool(
     WORK_TOOLS.work_iteration_write,
-    "Create or assign iterations in an Azure DevOps project. Use the action parameter to specify the operation.",
     {
-      action: z.enum(["create", "assign"]).describe("The action to perform. 'create' creates new iterations in the project; 'assign' assigns existing iterations to a team."),
-      project: z.string().describe("The name or ID of the Azure DevOps project."),
-      team: z.string().optional().describe("The name or ID of the Azure DevOps team. Required for assign."),
-      iterations: z
-        .array(
-          z.object({
-            iterationName: z.string().optional().describe("The name of the iteration to create. Used for create."),
-            startDate: z.string().optional().describe("The start date of the iteration in ISO format (e.g., '2023-01-01T00:00:00Z'). Used for create."),
-            finishDate: z.string().optional().describe("The finish date of the iteration in ISO format (e.g., '2023-01-31T23:59:59Z'). Used for create."),
-            identifier: z.string().optional().describe("The identifier of the iteration to assign. Used for assign."),
-            path: z.string().optional().describe("The path of the iteration to assign, e.g., 'Project/Iteration'. Used for assign."),
-          })
-        )
-        .describe("An array of iterations to process. For create: provide iterationName and optional dates. For assign: provide identifier and path."),
+      description: "Create or assign iterations in an Azure DevOps project. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z.enum(["create", "assign"]).describe("The action to perform. 'create' creates new iterations in the project; 'assign' assigns existing iterations to a team."),
+        project: z.string().describe("The name or ID of the Azure DevOps project."),
+        team: z.string().optional().describe("The name or ID of the Azure DevOps team. Required for assign."),
+        iterations: z
+          .array(
+            z.object({
+              iterationName: z.string().optional().describe("The name of the iteration to create. Used for create."),
+              startDate: z.string().optional().describe("The start date of the iteration in ISO format (e.g., '2023-01-01T00:00:00Z'). Used for create."),
+              finishDate: z.string().optional().describe("The finish date of the iteration in ISO format (e.g., '2023-01-31T23:59:59Z'). Used for create."),
+              identifier: z.string().optional().describe("The identifier of the iteration to assign. Used for assign."),
+              path: z.string().optional().describe("The path of the iteration to assign, e.g., 'Project/Iteration'. Used for assign."),
+            })
+          )
+          .describe("An array of iterations to process. For create: provide iterationName and optional dates. For assign: provide identifier and path."),
+      },
+      annotations: WRITE_CREATE_ANNOTATIONS,
     },
     async ({ action, project, team, iterations }) => {
       try {
@@ -346,32 +353,35 @@ function configureWorkTools(server: McpServer, _: () => Promise<string>, connect
     }
   );
 
-  server.tool(
+  server.registerTool(
     WORK_TOOLS.work_capacity_write,
-    "Update the team capacity of a team member for a specific iteration in a project.",
     {
-      action: z.literal("update").describe("The action to perform. Only 'update' is supported."),
-      project: z.string().describe("The name or Id of the Azure DevOps project."),
-      team: z.string().describe("The name or Id of the Azure DevOps team."),
-      teamMemberId: z.string().describe("The team member Id for the specific team member."),
-      iterationId: z.string().describe("The Iteration Id to update the capacity for."),
-      activities: z
-        .array(
-          z.object({
-            name: z.string().describe("The name of the activity (e.g., 'Development')."),
-            capacityPerDay: z.number().describe("The capacity per day for this activity."),
-          })
-        )
-        .describe("Array of activities and their daily capacities for the team member."),
-      daysOff: z
-        .array(
-          z.object({
-            start: z.string().describe("Start date of the day off in ISO format."),
-            end: z.string().describe("End date of the day off in ISO format."),
-          })
-        )
-        .optional()
-        .describe("Array of days off for the team member, each with a start and end date in ISO format."),
+      description: "Update the team capacity of a team member for a specific iteration in a project.",
+      inputSchema: {
+        action: z.literal("update").describe("The action to perform. Only 'update' is supported."),
+        project: z.string().describe("The name or Id of the Azure DevOps project."),
+        team: z.string().describe("The name or Id of the Azure DevOps team."),
+        teamMemberId: z.string().describe("The team member Id for the specific team member."),
+        iterationId: z.string().describe("The Iteration Id to update the capacity for."),
+        activities: z
+          .array(
+            z.object({
+              name: z.string().describe("The name of the activity (e.g., 'Development')."),
+              capacityPerDay: z.number().describe("The capacity per day for this activity."),
+            })
+          )
+          .describe("Array of activities and their daily capacities for the team member."),
+        daysOff: z
+          .array(
+            z.object({
+              start: z.string().describe("Start date of the day off in ISO format."),
+              end: z.string().describe("End date of the day off in ISO format."),
+            })
+          )
+          .optional()
+          .describe("Array of days off for the team member, each with a start and end date in ISO format."),
+      },
+      annotations: WRITE_UPDATE_ANNOTATIONS,
     },
     async ({ project, team, teamMemberId, iterationId, activities, daysOff }) => {
       try {

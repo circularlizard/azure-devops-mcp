@@ -14,6 +14,7 @@ import { join, posix, resolve, win32 } from "path";
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { Command, CommandContext, CommandRegistry, dispatchAction, errorResult } from "../shared/command.js";
 import { pipelinesWriteShape, RunPipelineArgs, CreatePipelineArgs, UpdateBuildStageArgs, PipelinesWriteArgs } from "./pipelines.dto.js";
+import { READ_ONLY_ANNOTATIONS, WRITE_CREATE_ANNOTATIONS } from "../shared/tool-annotations.js";
 
 // ─── pipelines_write commands ────────────────────────────────────────────────
 // Each write action is a self-contained command. Shared infrastructure arrives
@@ -135,40 +136,43 @@ const PIPELINE_TOOLS = {
 
 function configurePipelineTools(server: McpServer, tokenProvider: () => Promise<string>, connectionProvider: () => Promise<WebApi>, userAgentProvider: () => string) {
   // ─── pipelines_build ────────────────────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     PIPELINE_TOOLS.pipelines_build,
-    "Retrieve build data for a project. Use the action parameter to specify the operation.",
     {
-      action: z
-        .enum(["list", "get_status", "get_changes"])
-        .describe(
-          "The action to perform. Options: list (list builds with optional filters), get_status (get status, issues, and report metadata for a build), get_changes (get commits and work items associated with a build)."
-        ),
-      project: z.string().describe("Project ID or name."),
-      buildId: z.coerce.number().min(1).optional().describe("ID of the build. Required for: get_status, get_changes."),
-      // list-specific
-      definitions: z.array(z.coerce.number().min(1)).optional().describe("Array of build definition IDs to filter builds. Used for: list."),
-      queues: z.array(z.coerce.number().min(1)).optional().describe("Array of queue IDs to filter builds. Used for: list."),
-      buildNumber: z.string().optional().describe("Build number to filter builds. Used for: list."),
-      minTime: z.coerce.date().optional().describe("Minimum finish time to filter builds. Used for: list."),
-      maxTime: z.coerce.date().optional().describe("Maximum finish time to filter builds. Used for: list."),
-      requestedFor: z.string().optional().describe("User ID or name who requested the build. Used for: list."),
-      reasonFilter: z.number().optional().describe("Reason filter (see BuildReason enum). Used for: list."),
-      statusFilter: z.number().optional().describe("Status filter (see BuildStatus enum). Used for: list."),
-      resultFilter: z.number().optional().describe("Result filter (see BuildResult enum). Used for: list."),
-      tagFilters: z.array(z.string()).optional().describe("Array of tags to filter builds. Used for: list."),
-      properties: z.array(z.string()).optional().describe("Array of property names to include in results. Used for: list."),
-      top: z.number().optional().describe("Maximum number of builds to return. Used for: list, get_changes."),
-      continuationToken: z.string().optional().describe("Token for continuing paged results. Used for: list, get_changes."),
-      maxBuildsPerDefinition: z.number().optional().describe("Maximum number of builds per definition. Used for: list."),
-      deletedFilter: z.number().optional().describe("Filter for deleted builds (see QueryDeletedOption enum). Used for: list."),
-      queryOrder: z.string().optional().describe("Order in which builds are returned (BuildQueryOrder values). Used for: list."),
-      branchName: z.string().optional().describe("Branch name to filter builds. Used for: list."),
-      buildIds: z.array(z.coerce.number().min(1)).optional().describe("Array of specific build IDs to retrieve. Used for: list."),
-      repositoryId: z.string().optional().describe("Repository ID to filter builds. Used for: list."),
-      repositoryType: z.enum(["TfsGit", "GitHub", "BitbucketCloud"]).optional().describe("Repository type to filter builds. Used for: list."),
-      // get_changes-specific
-      includeSourceChange: z.boolean().optional().describe("Whether to include source changes in results. Used for: get_changes."),
+      description: "Retrieve build data for a project. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["list", "get_status", "get_changes"])
+          .describe(
+            "The action to perform. Options: list (list builds with optional filters), get_status (get status, issues, and report metadata for a build), get_changes (get commits and work items associated with a build)."
+          ),
+        project: z.string().describe("Project ID or name."),
+        buildId: z.coerce.number().min(1).optional().describe("ID of the build. Required for: get_status, get_changes."),
+        // list-specific
+        definitions: z.array(z.coerce.number().min(1)).optional().describe("Array of build definition IDs to filter builds. Used for: list."),
+        queues: z.array(z.coerce.number().min(1)).optional().describe("Array of queue IDs to filter builds. Used for: list."),
+        buildNumber: z.string().optional().describe("Build number to filter builds. Used for: list."),
+        minTime: z.coerce.date().optional().describe("Minimum finish time to filter builds. Used for: list."),
+        maxTime: z.coerce.date().optional().describe("Maximum finish time to filter builds. Used for: list."),
+        requestedFor: z.string().optional().describe("User ID or name who requested the build. Used for: list."),
+        reasonFilter: z.number().optional().describe("Reason filter (see BuildReason enum). Used for: list."),
+        statusFilter: z.number().optional().describe("Status filter (see BuildStatus enum). Used for: list."),
+        resultFilter: z.number().optional().describe("Result filter (see BuildResult enum). Used for: list."),
+        tagFilters: z.array(z.string()).optional().describe("Array of tags to filter builds. Used for: list."),
+        properties: z.array(z.string()).optional().describe("Array of property names to include in results. Used for: list."),
+        top: z.number().optional().describe("Maximum number of builds to return. Used for: list, get_changes."),
+        continuationToken: z.string().optional().describe("Token for continuing paged results. Used for: list, get_changes."),
+        maxBuildsPerDefinition: z.number().optional().describe("Maximum number of builds per definition. Used for: list."),
+        deletedFilter: z.number().optional().describe("Filter for deleted builds (see QueryDeletedOption enum). Used for: list."),
+        queryOrder: z.string().optional().describe("Order in which builds are returned (BuildQueryOrder values). Used for: list."),
+        branchName: z.string().optional().describe("Branch name to filter builds. Used for: list."),
+        buildIds: z.array(z.coerce.number().min(1)).optional().describe("Array of specific build IDs to retrieve. Used for: list."),
+        repositoryId: z.string().optional().describe("Repository ID to filter builds. Used for: list."),
+        repositoryType: z.enum(["TfsGit", "GitHub", "BitbucketCloud"]).optional().describe("Repository type to filter builds. Used for: list."),
+        // get_changes-specific
+        includeSourceChange: z.boolean().optional().describe("Whether to include source changes in results. Used for: get_changes."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({
       action,
@@ -253,16 +257,19 @@ function configurePipelineTools(server: McpServer, tokenProvider: () => Promise<
   );
 
   // ─── pipelines_build_log ────────────────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     PIPELINE_TOOLS.pipelines_build_log,
-    "Retrieve build log data for a project. Use the action parameter to specify the operation.",
     {
-      action: z.enum(["list", "get_content"]).describe("The action to perform. Options: list (list available logs for a build), get_content (get the text content of a specific log by ID)."),
-      project: z.string().describe("Project ID or name."),
-      buildId: z.coerce.number().min(1).describe("ID of the build. Required for all actions."),
-      logId: z.coerce.number().min(1).optional().describe("ID of the log to retrieve. Required for: get_content."),
-      startLine: z.coerce.number().optional().describe("Starting line number for the log content, defaults to 0. Used for: get_content."),
-      endLine: z.coerce.number().optional().describe("Ending line number for the log content, defaults to end of log. Used for: get_content."),
+      description: "Retrieve build log data for a project. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z.enum(["list", "get_content"]).describe("The action to perform. Options: list (list available logs for a build), get_content (get the text content of a specific log by ID)."),
+        project: z.string().describe("Project ID or name."),
+        buildId: z.coerce.number().min(1).describe("ID of the build. Required for all actions."),
+        logId: z.coerce.number().min(1).optional().describe("ID of the log to retrieve. Required for: get_content."),
+        startLine: z.coerce.number().optional().describe("Starting line number for the log content, defaults to 0. Used for: get_content."),
+        endLine: z.coerce.number().optional().describe("Ending line number for the log content, defaults to end of log. Used for: get_content."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ action, project, buildId, logId, startLine, endLine }) => {
       try {
@@ -293,32 +300,35 @@ function configurePipelineTools(server: McpServer, tokenProvider: () => Promise<
   );
 
   // ─── pipelines_definition ───────────────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     PIPELINE_TOOLS.pipelines_definition,
-    "Retrieve pipeline definition data for a project. Use the action parameter to specify the operation.",
     {
-      action: z
-        .enum(["list", "list_revisions"])
-        .describe("The action to perform. Options: list (list pipeline definitions with optional filters), list_revisions (list revision history for a pipeline definition)."),
-      project: z.string().describe("Project ID or name."),
-      definitionId: z.coerce.number().min(1).optional().describe("ID of the build definition. Required for: list_revisions."),
-      // list-specific
-      repositoryId: z.string().optional().describe("Repository ID to filter definitions. Can be a GUID or name (auto-resolved for TfsGit). Used for: list."),
-      repositoryType: z.enum(["TfsGit", "GitHub", "BitbucketCloud"]).optional().describe("Repository type to filter definitions. Used for: list."),
-      name: z.string().optional().describe("Name filter for build definitions. Used for: list."),
-      path: z.string().optional().describe("Path filter for build definitions. Used for: list."),
-      queryOrder: z.string().optional().describe("Order in which definitions are returned (DefinitionQueryOrder values). Used for: list."),
-      top: z.number().optional().describe("Maximum number of definitions to return. Used for: list."),
-      continuationToken: z.string().optional().describe("Token for continuing paged results. Used for: list."),
-      minMetricsTime: z.coerce.date().optional().describe("Minimum metrics time to filter definitions. Used for: list."),
-      definitionIds: z.array(z.coerce.number().min(1)).optional().describe("Array of definition IDs to filter. Used for: list."),
-      builtAfter: z.coerce.date().optional().describe("Return definitions that have builds after this date. Used for: list."),
-      notBuiltAfter: z.coerce.date().optional().describe("Return definitions without builds after this date. Used for: list."),
-      includeAllProperties: z.boolean().optional().describe("Whether to include all properties in results. Used for: list."),
-      includeLatestBuilds: z.boolean().optional().describe("Whether to include the latest builds for each definition. Used for: list."),
-      taskIdFilter: z.string().optional().describe("Task ID to filter build definitions. Used for: list."),
-      processType: z.number().optional().describe("Process type to filter build definitions. Used for: list."),
-      yamlFilename: z.string().optional().describe("YAML filename to filter build definitions. Used for: list."),
+      description: "Retrieve pipeline definition data for a project. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["list", "list_revisions"])
+          .describe("The action to perform. Options: list (list pipeline definitions with optional filters), list_revisions (list revision history for a pipeline definition)."),
+        project: z.string().describe("Project ID or name."),
+        definitionId: z.coerce.number().min(1).optional().describe("ID of the build definition. Required for: list_revisions."),
+        // list-specific
+        repositoryId: z.string().optional().describe("Repository ID to filter definitions. Can be a GUID or name (auto-resolved for TfsGit). Used for: list."),
+        repositoryType: z.enum(["TfsGit", "GitHub", "BitbucketCloud"]).optional().describe("Repository type to filter definitions. Used for: list."),
+        name: z.string().optional().describe("Name filter for build definitions. Used for: list."),
+        path: z.string().optional().describe("Path filter for build definitions. Used for: list."),
+        queryOrder: z.string().optional().describe("Order in which definitions are returned (DefinitionQueryOrder values). Used for: list."),
+        top: z.number().optional().describe("Maximum number of definitions to return. Used for: list."),
+        continuationToken: z.string().optional().describe("Token for continuing paged results. Used for: list."),
+        minMetricsTime: z.coerce.date().optional().describe("Minimum metrics time to filter definitions. Used for: list."),
+        definitionIds: z.array(z.coerce.number().min(1)).optional().describe("Array of definition IDs to filter. Used for: list."),
+        builtAfter: z.coerce.date().optional().describe("Return definitions that have builds after this date. Used for: list."),
+        notBuiltAfter: z.coerce.date().optional().describe("Return definitions without builds after this date. Used for: list."),
+        includeAllProperties: z.boolean().optional().describe("Whether to include all properties in results. Used for: list."),
+        includeLatestBuilds: z.boolean().optional().describe("Whether to include the latest builds for each definition. Used for: list."),
+        taskIdFilter: z.string().optional().describe("Task ID to filter build definitions. Used for: list."),
+        processType: z.number().optional().describe("Process type to filter build definitions. Used for: list."),
+        yamlFilename: z.string().optional().describe("YAML filename to filter build definitions. Used for: list."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({
       action,
@@ -404,14 +414,17 @@ function configurePipelineTools(server: McpServer, tokenProvider: () => Promise<
   );
 
   // ─── pipelines_run ──────────────────────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     PIPELINE_TOOLS.pipelines_run,
-    "Retrieve pipeline run data for a project. Use the action parameter to specify the operation.",
     {
-      action: z.enum(["get", "list"]).describe("The action to perform. Options: get (get a single pipeline run), list (list runs for a pipeline)."),
-      project: z.string().describe("Project ID or name."),
-      pipelineId: z.coerce.number().min(1).describe("ID of the pipeline. Required for all actions."),
-      runId: z.coerce.number().min(1).optional().describe("ID of the run. Required for: get."),
+      description: "Retrieve pipeline run data for a project. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z.enum(["get", "list"]).describe("The action to perform. Options: get (get a single pipeline run), list (list runs for a pipeline)."),
+        project: z.string().describe("Project ID or name."),
+        pipelineId: z.coerce.number().min(1).describe("ID of the pipeline. Required for all actions."),
+        runId: z.coerce.number().min(1).optional().describe("ID of the run. Required for: get."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ action, project, pipelineId, runId }) => {
       try {
@@ -441,15 +454,18 @@ function configurePipelineTools(server: McpServer, tokenProvider: () => Promise<
     }
   );
 
-  server.tool(
+  server.registerTool(
     PIPELINE_TOOLS.pipelines_artifact,
-    "Retrieve and download build artifacts. Use the action parameter to specify the operation.",
     {
-      action: z.enum(["list", "download"]).describe("The action to perform. Options: list (list artifacts for a build), download (download a named build artifact)."),
-      project: z.string().describe("Project ID or name."),
-      buildId: z.coerce.number().min(1).describe("ID of the build. Required for all actions."),
-      artifactName: z.string().optional().describe("Name of the artifact. Required for: download."),
-      destinationPath: z.string().optional().describe("Relative local path to download the artifact to. If not provided, returns base64 content. Used for: download."),
+      description: "Retrieve and download build artifacts. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z.enum(["list", "download"]).describe("The action to perform. Options: list (list artifacts for a build), download (download a named build artifact)."),
+        project: z.string().describe("Project ID or name."),
+        buildId: z.coerce.number().min(1).describe("ID of the build. Required for all actions."),
+        artifactName: z.string().optional().describe("Name of the artifact. Required for: download."),
+        destinationPath: z.string().optional().describe("Relative local path to download the artifact to. If not provided, returns base64 content. Used for: download."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ action, project, buildId, artifactName, destinationPath }) => {
       try {
@@ -531,10 +547,18 @@ function configurePipelineTools(server: McpServer, tokenProvider: () => Promise<
   );
 
   // ─── pipelines_write ────────────────────────────────────────────────────────
-  server.tool(PIPELINE_TOOLS.pipelines_write, "Write operations for pipelines and builds. Use the action parameter to specify the operation.", pipelinesWriteShape, async (args) => {
-    const context: CommandContext = { connectionProvider, tokenProvider, userAgentProvider };
-    return dispatchAction(pipelinesWriteCommands, context, args as unknown as PipelinesWriteArgs, pipelinesWriteErrorPrefixes);
-  });
+  server.registerTool(
+    PIPELINE_TOOLS.pipelines_write,
+    {
+      description: "Write operations for pipelines and builds. Use the action parameter to specify the operation.",
+      inputSchema: pipelinesWriteShape,
+      annotations: WRITE_CREATE_ANNOTATIONS,
+    },
+    async (args) => {
+      const context: CommandContext = { connectionProvider, tokenProvider, userAgentProvider };
+      return dispatchAction(pipelinesWriteCommands, context, args as unknown as PipelinesWriteArgs, pipelinesWriteErrorPrefixes);
+    }
+  );
 }
 
 export { PIPELINE_TOOLS, configurePipelineTools, runPipelineCommand, createPipelineCommand, updateBuildStageCommand };

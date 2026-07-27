@@ -7,6 +7,7 @@ import { z } from "zod";
 import { WikiPagesBatchRequest } from "azure-devops-node-api/interfaces/WikiInterfaces.js";
 import { apiVersion, extractAdoStreamError, getOrgFromUrl } from "../utils.js";
 import { createExternalContentResponse } from "../shared/content-safety.js";
+import { READ_ONLY_ANNOTATIONS, WRITE_UPDATE_ANNOTATIONS } from "../shared/tool-annotations.js";
 
 const WIKI_TOOLS = {
   wiki: "wiki",
@@ -14,31 +15,34 @@ const WIKI_TOOLS = {
 };
 
 function configureWikiTools(server: McpServer, tokenProvider: () => Promise<string>, connectionProvider: () => Promise<WebApi>, userAgentProvider: () => string) {
-  server.tool(
+  server.registerTool(
     WIKI_TOOLS.wiki,
-    "Retrieve wiki data for an organization or project. Use the action parameter to specify the operation.",
     {
-      action: z
-        .enum(["list_wikis", "get_wiki", "list_pages", "get_page", "get_page_content"])
-        .describe(
-          "The action to perform. Options: list_wikis (list all wikis in an organization or project), get_wiki (get details of a specific wiki), list_pages (list pages in a wiki), get_page (get wiki page metadata without content), get_page_content (retrieve wiki page content)."
-        ),
-      wikiIdentifier: z.string().optional().describe("The unique identifier of the wiki. Required for get_wiki, list_pages, get_page, and get_page_content (unless url is provided)."),
-      project: z.string().optional().describe("The project name or ID. Required for list_pages and get_page. Optional for list_wikis, get_wiki, and get_page_content."),
-      path: z.string().optional().describe("The path of the wiki page (e.g., '/Home' or '/Documentation/Setup'). Required for get_page. Optional for get_page_content."),
-      url: z
-        .string()
-        .optional()
-        .describe(
-          "The full URL of the wiki page. Used for get_page_content. If provided, wikiIdentifier, project, and path are ignored. Supported patterns: https://dev.azure.com/{org}/{project}/_wiki/wikis/{wikiIdentifier}?pagePath=%2FMy%20Page and https://dev.azure.com/{org}/{project}/_wiki/wikis/{wikiIdentifier}/{pageId}/Page-Title"
-        ),
-      top: z.coerce.number().default(20).describe("The maximum number of pages to return. Used for list_pages. Defaults to 20."),
-      continuationToken: z.string().optional().describe("Token for pagination to retrieve the next set of pages. Used for list_pages."),
-      pageViewsForDays: z.coerce.number().optional().describe("Number of days to retrieve page views for. Used for list_pages. If not specified, page views are not included."),
-      recursionLevel: z
-        .enum(["None", "OneLevel", "OneLevelPlusNestedEmptyFolders", "Full"])
-        .optional()
-        .describe("Recursion level for subpages. Used for get_page. 'None' returns only the specified page. 'OneLevel' includes direct children. 'Full' includes all descendants."),
+      description: "Retrieve wiki data for an organization or project. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["list_wikis", "get_wiki", "list_pages", "get_page", "get_page_content"])
+          .describe(
+            "The action to perform. Options: list_wikis (list all wikis in an organization or project), get_wiki (get details of a specific wiki), list_pages (list pages in a wiki), get_page (get wiki page metadata without content), get_page_content (retrieve wiki page content)."
+          ),
+        wikiIdentifier: z.string().optional().describe("The unique identifier of the wiki. Required for get_wiki, list_pages, get_page, and get_page_content (unless url is provided)."),
+        project: z.string().optional().describe("The project name or ID. Required for list_pages and get_page. Optional for list_wikis, get_wiki, and get_page_content."),
+        path: z.string().optional().describe("The path of the wiki page (e.g., '/Home' or '/Documentation/Setup'). Required for get_page. Optional for get_page_content."),
+        url: z
+          .string()
+          .optional()
+          .describe(
+            "The full URL of the wiki page. Used for get_page_content. If provided, wikiIdentifier, project, and path are ignored. Supported patterns: https://dev.azure.com/{org}/{project}/_wiki/wikis/{wikiIdentifier}?pagePath=%2FMy%20Page and https://dev.azure.com/{org}/{project}/_wiki/wikis/{wikiIdentifier}/{pageId}/Page-Title"
+          ),
+        top: z.coerce.number().default(20).describe("The maximum number of pages to return. Used for list_pages. Defaults to 20."),
+        continuationToken: z.string().optional().describe("Token for pagination to retrieve the next set of pages. Used for list_pages."),
+        pageViewsForDays: z.coerce.number().optional().describe("Number of days to retrieve page views for. Used for list_pages. If not specified, page views are not included."),
+        recursionLevel: z
+          .enum(["None", "OneLevel", "OneLevelPlusNestedEmptyFolders", "Full"])
+          .optional()
+          .describe("Recursion level for subpages. Used for get_page. 'None' returns only the specified page. 'OneLevel' includes direct children. 'Full' includes all descendants."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ action, wikiIdentifier, project, path, url, top = 20, continuationToken, pageViewsForDays, recursionLevel }) => {
       try {
@@ -267,16 +271,19 @@ function configureWikiTools(server: McpServer, tokenProvider: () => Promise<stri
     }
   );
 
-  server.tool(
+  server.registerTool(
     WIKI_TOOLS.wiki_upsert_page,
-    "Create or update a wiki page with content.",
     {
-      wikiIdentifier: z.string().describe("The unique identifier or name of the wiki."),
-      path: z.string().describe("The path of the wiki page (e.g., '/Home' or '/Documentation/Setup')."),
-      content: z.string().describe("The content of the wiki page in markdown format."),
-      project: z.string().optional().describe("The project name or ID where the wiki is located. If not provided, the default project will be used."),
-      etag: z.string().optional().describe("ETag for editing existing pages (optional, will be fetched if not provided)."),
-      branch: z.string().default("wikiMaster").describe("The branch name for the wiki repository. Defaults to 'wikiMaster' which is the default branch for Azure DevOps wikis."),
+      description: "Create or update a wiki page with content.",
+      inputSchema: {
+        wikiIdentifier: z.string().describe("The unique identifier or name of the wiki."),
+        path: z.string().describe("The path of the wiki page (e.g., '/Home' or '/Documentation/Setup')."),
+        content: z.string().describe("The content of the wiki page in markdown format."),
+        project: z.string().optional().describe("The project name or ID where the wiki is located. If not provided, the default project will be used."),
+        etag: z.string().optional().describe("ETag for editing existing pages (optional, will be fetched if not provided)."),
+        branch: z.string().default("wikiMaster").describe("The branch name for the wiki repository. Defaults to 'wikiMaster' which is the default branch for Azure DevOps wikis."),
+      },
+      annotations: WRITE_UPDATE_ANNOTATIONS,
     },
     async ({ wikiIdentifier, path, content, project, etag, branch = "wikiMaster" }) => {
       try {

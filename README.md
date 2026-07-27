@@ -1,5 +1,8 @@
 # ⭐ Azure DevOps MCP Server
 
+> [!NOTE]
+> This is a fork of [microsoft/azure-devops-mcp](https://github.com/microsoft/azure-devops-mcp), maintained for local use. See [CHANGELOG.md](./CHANGELOG.md) for a summary of changes made in this fork relative to upstream.
+
 > [!IMPORTANT]
 > The Azure DevOps Remote MCP Server is now available in public preview for all organizations. We recommend migrating to the [Remote MCP Server](https://learn.microsoft.com/en-us/azure/devops/mcp-server/remote-mcp-server) going forward.
 >

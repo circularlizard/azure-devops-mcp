@@ -11,8 +11,9 @@ import { z } from "zod";
 import { batchApiVersion, markdownCommentsApiVersion, getEnumKeys, safeEnumConvert, encodeFormattedValue } from "../utils.js";
 import { elicitProject, elicitTeam } from "../shared/elicitations.js";
 import { createExternalContentResponse } from "../shared/content-safety.js";
+import { READ_ONLY_ANNOTATIONS, WRITE_CREATE_ANNOTATIONS, WRITE_DESTRUCTIVE_ANNOTATIONS } from "../shared/tool-annotations.js";
 
-const WORKITEM_TOOLS = {
+const WORK_ITEM_TOOLS = {
   wit_work_item: "wit_work_item",
   wit_query: "wit_query",
   wit_backlog: "wit_backlog",
@@ -64,32 +65,35 @@ function getArtifactLinkAttributeName(linkType: string): string {
 
 function configureWorkItemTools(server: McpServer, tokenProvider: () => Promise<string>, connectionProvider: () => Promise<WebApi>, userAgentProvider: () => string) {
   // --- wit_work_item ----------------------------------------------------------
-  server.tool(
-    WORKITEM_TOOLS.wit_work_item,
-    "Retrieve work item data for a project. Use the action parameter to specify the operation.",
+  server.registerTool(
+    WORK_ITEM_TOOLS.wit_work_item,
     {
-      action: z
-        .enum(["get", "get_batch", "list_comments", "my", "list_revisions", "list_for_iteration", "get_type"])
-        .describe(
-          "The action to perform. Options: get (get a single work item by ID), get_batch (get multiple work items by IDs), list_comments (list comments on a work item), my (get work items relevant to the authenticated user), list_revisions (list revisions of a work item), list_for_iteration (list work items for a team iteration), get_type (get metadata for a work item type)."
-        ),
-      project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
-      id: z.coerce.number().min(1).optional().describe("Work item ID. Required for: get."),
-      ids: z.array(z.coerce.number().min(1)).optional().describe("Work item IDs. Required for: get_batch."),
-      workItemId: z.coerce.number().min(1).optional().describe("Work item ID. Required for: list_comments, list_revisions."),
-      fields: z.array(z.string()).optional().describe("Field names to include in the response. Used for: get, get_batch. For get, cannot be combined with expand."),
-      asOf: z.coerce.date().optional().describe("Retrieve the work item as of a specific date. Used for: get."),
-      expand: z
-        .enum(getEnumKeys(WorkItemExpand) as [string, ...string[]])
-        .optional()
-        .describe("Expand options (None, Fields, Relations, Links, All). Used for: get, list_revisions. For get, cannot be combined with fields."),
-      top: z.coerce.number().optional().describe("Maximum number of results to return. Used for: list_comments, my, list_revisions. Defaults vary by action."),
-      includeCompleted: z.boolean().optional().default(false).describe("Include completed work items. Used for: my. Defaults to false."),
-      type: z.enum(["assignedtome", "myactivity"]).optional().describe("Type of work items to retrieve. Used for: my. Defaults to 'assignedtome'."),
-      skip: z.coerce.number().optional().describe("Number of results to skip for pagination. Used for: list_revisions."),
-      team: z.string().optional().describe("Team name or ID. Used for: list_for_iteration."),
-      iterationId: z.string().optional().describe("Iteration ID. Required for: list_for_iteration."),
-      workItemType: z.string().optional().describe("Work item type name. Required for: get_type."),
+      description: "Retrieve work item data for a project. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["get", "get_batch", "list_comments", "my", "list_revisions", "list_for_iteration", "get_type"])
+          .describe(
+            "The action to perform. Options: get (get a single work item by ID), get_batch (get multiple work items by IDs), list_comments (list comments on a work item), my (get work items relevant to the authenticated user), list_revisions (list revisions of a work item), list_for_iteration (list work items for a team iteration), get_type (get metadata for a work item type)."
+          ),
+        project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
+        id: z.coerce.number().min(1).optional().describe("Work item ID. Required for: get."),
+        ids: z.array(z.coerce.number().min(1)).optional().describe("Work item IDs. Required for: get_batch."),
+        workItemId: z.coerce.number().min(1).optional().describe("Work item ID. Required for: list_comments, list_revisions."),
+        fields: z.array(z.string()).optional().describe("Field names to include in the response. Used for: get, get_batch. For get, cannot be combined with expand."),
+        asOf: z.coerce.date().optional().describe("Retrieve the work item as of a specific date. Used for: get."),
+        expand: z
+          .enum(getEnumKeys(WorkItemExpand) as [string, ...string[]])
+          .optional()
+          .describe("Expand options (None, Fields, Relations, Links, All). Used for: get, list_revisions. For get, cannot be combined with fields."),
+        top: z.coerce.number().optional().describe("Maximum number of results to return. Used for: list_comments, my, list_revisions. Defaults vary by action."),
+        includeCompleted: z.boolean().optional().default(false).describe("Include completed work items. Used for: my. Defaults to false."),
+        type: z.enum(["assignedtome", "myactivity"]).optional().describe("Type of work items to retrieve. Used for: my. Defaults to 'assignedtome'."),
+        skip: z.coerce.number().optional().describe("Number of results to skip for pagination. Used for: list_revisions."),
+        team: z.string().optional().describe("Team name or ID. Used for: list_for_iteration."),
+        iterationId: z.string().optional().describe("Iteration ID. Required for: list_for_iteration."),
+        workItemType: z.string().optional().describe("Work item type name. Required for: get_type."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ action, project, id, ids, workItemId, fields, asOf, expand, top, includeCompleted, type, skip, team, iterationId, workItemType }) => {
       try {
@@ -254,28 +258,31 @@ function configureWorkItemTools(server: McpServer, tokenProvider: () => Promise<
   );
 
   // --- wit_query --------------------------------------------------------------
-  server.tool(
-    WORKITEM_TOOLS.wit_query,
-    "Retrieve work item query data for a project. Use the action parameter to specify the operation.",
+  server.registerTool(
+    WORK_ITEM_TOOLS.wit_query,
     {
-      action: z
-        .enum(["get", "get_results", "wiql"])
-        .describe("The action to perform. Options: get (get a query by ID or path), get_results (run a saved query and return results), wiql (execute an ad-hoc WIQL query)."),
-      project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
-      query: z.string().optional().describe("The ID or path of the query. Required for: get."),
-      expand: z
-        .enum(getEnumKeys(QueryExpand) as [string, ...string[]])
-        .optional()
-        .describe("Expand parameter to include additional details. Used for: get."),
-      depth: z.coerce.number().default(0).describe("Depth of expansion. Used for: get. Defaults to 0."),
-      includeDeleted: z.boolean().default(false).describe("Include deleted items. Used for: get. Defaults to false."),
-      useIsoDateFormat: z.boolean().default(false).describe("Use ISO date format in the response. Used for: get. Defaults to false."),
-      id: z.string().optional().describe("The ID of the saved query. Required for: get_results."),
-      team: z.string().optional().describe("Team name or ID. Used for: get_results, wiql."),
-      timePrecision: z.boolean().optional().describe("Include time precision in date fields. Used for: get_results, wiql."),
-      top: z.coerce.number().default(50).describe("Maximum number of results to return. Used for: get_results, wiql. Defaults to 50."),
-      responseType: z.enum(["full", "ids"]).default("full").describe("Response type: 'full' returns complete results (default), 'ids' returns only work item IDs. Used for: get_results."),
-      wiql: z.string().max(32768).optional().describe('The WIQL query string to execute. Required for: wiql. Example: "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project".'),
+      description: "Retrieve work item query data for a project. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["get", "get_results", "wiql"])
+          .describe("The action to perform. Options: get (get a query by ID or path), get_results (run a saved query and return results), wiql (execute an ad-hoc WIQL query)."),
+        project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
+        query: z.string().optional().describe("The ID or path of the query. Required for: get."),
+        expand: z
+          .enum(getEnumKeys(QueryExpand) as [string, ...string[]])
+          .optional()
+          .describe("Expand parameter to include additional details. Used for: get."),
+        depth: z.coerce.number().default(0).describe("Depth of expansion. Used for: get. Defaults to 0."),
+        includeDeleted: z.boolean().default(false).describe("Include deleted items. Used for: get. Defaults to false."),
+        useIsoDateFormat: z.boolean().default(false).describe("Use ISO date format in the response. Used for: get. Defaults to false."),
+        id: z.string().optional().describe("The ID of the saved query. Required for: get_results."),
+        team: z.string().optional().describe("Team name or ID. Used for: get_results, wiql."),
+        timePrecision: z.boolean().optional().describe("Include time precision in date fields. Used for: get_results, wiql."),
+        top: z.coerce.number().default(50).describe("Maximum number of results to return. Used for: get_results, wiql. Defaults to 50."),
+        responseType: z.enum(["full", "ids"]).default("full").describe("Response type: 'full' returns complete results (default), 'ids' returns only work item IDs. Used for: get_results."),
+        wiql: z.string().max(32768).optional().describe('The WIQL query string to execute. Required for: wiql. Example: "SELECT [System.Id] FROM WorkItems WHERE [System.TeamProject] = @project".'),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ action, project, query, expand, depth, includeDeleted, useIsoDateFormat, id, team, timePrecision, top, responseType, wiql }) => {
       try {
@@ -329,14 +336,17 @@ function configureWorkItemTools(server: McpServer, tokenProvider: () => Promise<
   );
 
   // --- wit_backlog ------------------------------------------------------------
-  server.tool(
-    WORKITEM_TOOLS.wit_backlog,
-    "Retrieve backlog data for a project and team. Use the action parameter to specify the operation.",
+  server.registerTool(
+    WORK_ITEM_TOOLS.wit_backlog,
     {
-      action: z.enum(["list", "list_work_items"]).describe("The action to perform. Options: list (list backlog levels for a team), list_work_items (list work items in a specific backlog level)."),
-      project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
-      team: z.string().optional().describe("The name or ID of the Azure DevOps team. Reuse from prior context if already known. If not provided, a team selection prompt will be shown."),
-      backlogId: z.string().optional().describe("The ID of the backlog category to retrieve work items from. Required for: list_work_items."),
+      description: "Retrieve backlog data for a project and team. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z.enum(["list", "list_work_items"]).describe("The action to perform. Options: list (list backlog levels for a team), list_work_items (list work items in a specific backlog level)."),
+        project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
+        team: z.string().optional().describe("The name or ID of the Azure DevOps team. Reuse from prior context if already known. If not provided, a team selection prompt will be shown."),
+        backlogId: z.string().optional().describe("The ID of the backlog category to retrieve work items from. Required for: list_work_items."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ action, project, team, backlogId }) => {
       try {
@@ -385,19 +395,23 @@ function configureWorkItemTools(server: McpServer, tokenProvider: () => Promise<
   );
 
   // --- wit_work_item_attachment -----------------------------------------------
-  server.tool(
-    WORKITEM_TOOLS.wit_work_item_attachment,
-    "Download a work item attachment by its ID. By default returns the content as a base64-encoded resource. If savePath is provided, saves the file locally to that directory and returns the file path instead. Useful for viewing images (e.g. screenshots) or other files attached to work items such as bugs. If a project is not specified, you will be prompted to select one.",
+  server.registerTool(
+    WORK_ITEM_TOOLS.wit_work_item_attachment,
     {
-      project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
-      attachmentId: z.string().describe("The GUID of the attachment. Found in the attachment URL: https://dev.azure.com/{org}/{project}/_apis/wit/attachments/{attachmentId}"),
-      fileName: z.string().optional().describe("The file name of the attachment, e.g. 'screenshot.png'. Used to determine the MIME type or the saved file's name."),
-      savePath: z
-        .string()
-        .optional()
-        .describe(
-          "Optional local directory path where the file should be saved. Must be a relative path (e.g. 'temp' or 'downloads/attachments'); absolute paths and path traversals are not allowed. If provided, saves the attachment to this directory and returns the file path. If omitted, returns the content as a base64-encoded resource."
-        ),
+      description:
+        "Download a work item attachment by its ID. By default returns the content as a base64-encoded resource. If savePath is provided, saves the file locally to that directory and returns the file path instead. Useful for viewing images (e.g. screenshots) or other files attached to work items such as bugs. If a project is not specified, you will be prompted to select one.",
+      inputSchema: {
+        project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
+        attachmentId: z.string().describe("The GUID of the attachment. Found in the attachment URL: https://dev.azure.com/{org}/{project}/_apis/wit/attachments/{attachmentId}"),
+        fileName: z.string().optional().describe("The file name of the attachment, e.g. 'screenshot.png'. Used to determine the MIME type or the saved file's name."),
+        savePath: z
+          .string()
+          .optional()
+          .describe(
+            "Optional local directory path where the file should be saved. Must be a relative path (e.g. 'temp' or 'downloads/attachments'); absolute paths and path traversals are not allowed. If provided, saves the attachment to this directory and returns the file path. If omitted, returns the content as a base64-encoded resource."
+          ),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ project, attachmentId, fileName, savePath }) => {
       const isAbsolutePath = (value: string) => path.posix.isAbsolute(value) || path.win32.isAbsolute(value);
@@ -480,68 +494,71 @@ function configureWorkItemTools(server: McpServer, tokenProvider: () => Promise<
   );
 
   // --- wit_work_item_write ----------------------------------------------------
-  server.tool(
-    WORKITEM_TOOLS.wit_work_item_write,
-    "Write operations for work items. Use the action parameter to specify the operation.",
+  server.registerTool(
+    WORK_ITEM_TOOLS.wit_work_item_write,
     {
-      action: z
-        .enum(["create", "update", "update_batch", "add_child"])
-        .describe(
-          "The action to perform. Options: create (create a new work item), update (update fields on a single work item), update_batch (update multiple work items in one call), add_child (create child work items under a parent)."
-        ),
-      project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
-      id: z.coerce.number().min(1).optional().describe("Work item ID to update. Required for: update."),
-      workItemType: z.string().optional().describe("The type of work item. Required for: create, add_child."),
-      fields: z
-        .array(
-          z.object({
-            name: z.string().describe("The field name, e.g. 'System.Title'."),
-            value: z.string().describe("The field value."),
-            format: z.enum(["Html", "Markdown"]).optional().describe("Format for large text fields. Optional."),
-          })
-        )
-        .optional()
-        .describe("Field values to set on the work item. Required for: create."),
-      updates: z
-        .array(
-          z.object({
-            op: z
-              .string()
-              .transform((val) => val.toLowerCase())
-              .pipe(z.enum(["add", "replace", "remove"]))
-              .default("add")
-              .describe("The operation to perform."),
-            path: z.string().describe("The field path, e.g. '/fields/System.Title'."),
-            value: z.string().describe("The new value for the field."),
-          })
-        )
-        .optional()
-        .describe("Field updates for a single work item. Required for: update."),
-      batchUpdates: z
-        .array(
-          z.object({
-            op: z.enum(["Add", "Replace", "Remove"]).default("Add").describe("The operation to perform."),
-            id: z.coerce.number().min(1).describe("The work item ID to update."),
-            path: z.string().describe("The field path, e.g. '/fields/System.Title'."),
-            value: z.string().describe("The new value for the field."),
-            format: z.enum(["Html", "Markdown"]).optional().describe("Format for large text fields. Optional."),
-          })
-        )
-        .optional()
-        .describe("Updates for multiple work items. Required for: update_batch."),
-      parentId: z.coerce.number().min(1).optional().describe("The ID of the parent work item. Required for: add_child."),
-      items: z
-        .array(
-          z.object({
-            title: z.string().describe("The title of the child work item."),
-            description: z.string().describe("The description of the child work item."),
-            format: z.enum(["Markdown", "Html"]).default("Markdown").describe("Format for the description. Defaults to 'Markdown'."),
-            areaPath: z.string().optional().describe("Optional area path for the child work item."),
-            iterationPath: z.string().optional().describe("Optional iteration path for the child work item."),
-          })
-        )
-        .optional()
-        .describe("Child work items to create. Required for: add_child."),
+      description: "Write operations for work items. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["create", "update", "update_batch", "add_child"])
+          .describe(
+            "The action to perform. Options: create (create a new work item), update (update fields on a single work item), update_batch (update multiple work items in one call), add_child (create child work items under a parent)."
+          ),
+        project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
+        id: z.coerce.number().min(1).optional().describe("Work item ID to update. Required for: update."),
+        workItemType: z.string().optional().describe("The type of work item. Required for: create, add_child."),
+        fields: z
+          .array(
+            z.object({
+              name: z.string().describe("The field name, e.g. 'System.Title'."),
+              value: z.string().describe("The field value."),
+              format: z.enum(["Html", "Markdown"]).optional().describe("Format for large text fields. Optional."),
+            })
+          )
+          .optional()
+          .describe("Field values to set on the work item. Required for: create."),
+        updates: z
+          .array(
+            z.object({
+              op: z
+                .string()
+                .transform((val) => val.toLowerCase())
+                .pipe(z.enum(["add", "replace", "remove"]))
+                .default("add")
+                .describe("The operation to perform."),
+              path: z.string().describe("The field path, e.g. '/fields/System.Title'."),
+              value: z.string().describe("The new value for the field."),
+            })
+          )
+          .optional()
+          .describe("Field updates for a single work item. Required for: update."),
+        batchUpdates: z
+          .array(
+            z.object({
+              op: z.enum(["Add", "Replace", "Remove"]).default("Add").describe("The operation to perform."),
+              id: z.coerce.number().min(1).describe("The work item ID to update."),
+              path: z.string().describe("The field path, e.g. '/fields/System.Title'."),
+              value: z.string().describe("The new value for the field."),
+              format: z.enum(["Html", "Markdown"]).optional().describe("Format for large text fields. Optional."),
+            })
+          )
+          .optional()
+          .describe("Updates for multiple work items. Required for: update_batch."),
+        parentId: z.coerce.number().min(1).optional().describe("The ID of the parent work item. Required for: add_child."),
+        items: z
+          .array(
+            z.object({
+              title: z.string().describe("The title of the child work item."),
+              description: z.string().describe("The description of the child work item."),
+              format: z.enum(["Markdown", "Html"]).default("Markdown").describe("Format for the description. Defaults to 'Markdown'."),
+              areaPath: z.string().optional().describe("Optional area path for the child work item."),
+              iterationPath: z.string().optional().describe("Optional iteration path for the child work item."),
+            })
+          )
+          .optional()
+          .describe("Child work items to create. Required for: add_child."),
+      },
+      annotations: WRITE_CREATE_ANNOTATIONS,
     },
     async ({ action, project, id, workItemType, fields, updates, batchUpdates, parentId, items }) => {
       try {
@@ -736,16 +753,19 @@ function configureWorkItemTools(server: McpServer, tokenProvider: () => Promise<
   );
 
   // --- wit_work_item_comment_write --------------------------------------------
-  server.tool(
-    WORKITEM_TOOLS.wit_work_item_comment_write,
-    "Write operations for work item comments. Use the action parameter to specify the operation.",
+  server.registerTool(
+    WORK_ITEM_TOOLS.wit_work_item_comment_write,
     {
-      action: z.enum(["add", "update"]).describe("The action to perform. Options: add (add a comment to a work item), update (update an existing comment on a work item)."),
-      project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
-      workItemId: z.coerce.number().min(1).optional().describe("The ID of the work item. Required for: add, update."),
-      text: z.string().optional().describe("The comment text. Required for: add, update."),
-      commentId: z.coerce.number().min(1).optional().describe("The ID of the comment to update. Required for: update."),
-      format: z.enum(["Markdown", "Html"]).optional().default("Markdown").describe("Format of the comment text. Optional, defaults to 'Markdown'."),
+      description: "Write operations for work item comments. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z.enum(["add", "update"]).describe("The action to perform. Options: add (add a comment to a work item), update (update an existing comment on a work item)."),
+        project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
+        workItemId: z.coerce.number().min(1).optional().describe("The ID of the work item. Required for: add, update."),
+        text: z.string().optional().describe("The comment text. Required for: add, update."),
+        commentId: z.coerce.number().min(1).optional().describe("The ID of the comment to update. Required for: update."),
+        format: z.enum(["Markdown", "Html"]).optional().default("Markdown").describe("Format of the comment text. Optional, defaults to 'Markdown'."),
+      },
+      annotations: WRITE_CREATE_ANNOTATIONS,
     },
     async ({ action, project, workItemId, text, commentId, format }) => {
       try {
@@ -823,72 +843,75 @@ function configureWorkItemTools(server: McpServer, tokenProvider: () => Promise<
   );
 
   // --- wit_work_item_link_write -----------------------------------------------
-  server.tool(
-    WORKITEM_TOOLS.wit_work_item_link_write,
-    "Write operations for work item links. Use the action parameter to specify the operation.",
+  server.registerTool(
+    WORK_ITEM_TOOLS.wit_work_item_link_write,
     {
-      action: z
-        .enum(["link", "unlink", "link_to_pull_request", "add_artifact_link"])
-        .describe(
-          "The action to perform. Options: link (link two work items together), unlink (remove links from a work item), link_to_pull_request (link a work item to a pull request), add_artifact_link (add a repository, branch, commit, or build artifact link to a work item)."
-        ),
-      project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
-      // link
-      updates: z
-        .array(
-          z.object({
-            id: z.coerce.number().min(1).describe("The ID of the work item to update."),
-            linkToId: z.coerce.number().min(1).describe("The ID of the work item to link to."),
-            type: z
-              .enum(["parent", "child", "duplicate", "duplicate of", "related", "successor", "predecessor", "tested by", "tests", "affects", "affected by"])
-              .default("related")
-              .describe("Type of link. Defaults to 'related'."),
-            comment: z.string().optional().describe("Optional comment for the link."),
-          })
-        )
-        .optional()
-        .describe("Link operations to apply. Required for: link."),
-      // unlink
-      id: z.coerce.number().min(1).optional().describe("Work item ID to remove links from. Required for: unlink."),
-      type: z
-        .enum(["parent", "child", "duplicate", "duplicate of", "related", "successor", "predecessor", "tested by", "tests", "affects", "affected by", "artifact"])
-        .optional()
-        .describe("Link type to remove. Required for: unlink."),
-      url: z.string().optional().describe("URL to match when removing a link. Used for: unlink. If not provided, all links of the specified type are removed."),
-      // link_to_pull_request and add_artifact_link
-      projectId: z.string().optional().describe("The project ID (GUID). Required for: link_to_pull_request, and add_artifact_link (Git/Wiki types)."),
-      repositoryId: z.string().optional().describe("The repository ID. Required for: link_to_pull_request and add_artifact_link (Git types)."),
-      pullRequestId: z.coerce.number().min(1).optional().describe("The pull request ID. Required for: link_to_pull_request; used for: add_artifact_link (Pull Request type)."),
-      workItemId: z.coerce.number().min(1).optional().describe("The work item ID. Required for: link_to_pull_request, add_artifact_link."),
-      pullRequestProjectId: z.string().optional().describe("Project ID containing the pull request. Used for: link_to_pull_request. Defaults to projectId."),
-      // add_artifact_link
-      artifactUri: z.string().optional().describe("The complete VSTFS URI of the artifact. Used for: add_artifact_link. If provided, individual component parameters are ignored."),
-      branchName: z.string().optional().describe("The branch name. Used for: add_artifact_link (Branch type)."),
-      commitId: z.string().optional().describe("The commit SHA hash. Used for: add_artifact_link (Fixed in Commit type)."),
-      buildId: z.coerce.number().min(1).optional().describe("The build ID. Used for: add_artifact_link (Build, Found in build, Integrated in build types)."),
-      wikiId: z.string().optional().describe("The wiki ID (GUID). Used for: add_artifact_link (Wiki type)."),
-      pageId: z.coerce.number().min(1).optional().describe("The numeric wiki page ID. Used for: add_artifact_link (Wiki type). Takes precedence over pagePath."),
-      pagePath: z.string().optional().describe("The full wiki page path. Used for: add_artifact_link (Wiki type) when pageId is not provided."),
-      linkType: z
-        .enum([
-          "Branch",
-          "Build",
-          "Fixed in Changeset",
-          "Fixed in Commit",
-          "Found in build",
-          "Integrated in build",
-          "Model Link",
-          "Pull Request",
-          "Related Workitem",
-          "Result Attachment",
-          "Source Code File",
-          "Tag",
-          "Test Result",
-          "Wiki",
-        ])
-        .optional()
-        .describe("Type of artifact link. Used for: add_artifact_link. Defaults to 'Branch'."),
-      comment: z.string().optional().describe("Comment to include with the artifact link. Used for: add_artifact_link."),
+      description: "Write operations for work item links. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["link", "unlink", "link_to_pull_request", "add_artifact_link"])
+          .describe(
+            "The action to perform. Options: link (link two work items together), unlink (remove links from a work item), link_to_pull_request (link a work item to a pull request), add_artifact_link (add a repository, branch, commit, or build artifact link to a work item)."
+          ),
+        project: z.string().optional().describe("The name or ID of the Azure DevOps project. Reuse from prior context if already known. If not provided, a project selection prompt will be shown."),
+        // link
+        updates: z
+          .array(
+            z.object({
+              id: z.coerce.number().min(1).describe("The ID of the work item to update."),
+              linkToId: z.coerce.number().min(1).describe("The ID of the work item to link to."),
+              type: z
+                .enum(["parent", "child", "duplicate", "duplicate of", "related", "successor", "predecessor", "tested by", "tests", "affects", "affected by"])
+                .default("related")
+                .describe("Type of link. Defaults to 'related'."),
+              comment: z.string().optional().describe("Optional comment for the link."),
+            })
+          )
+          .optional()
+          .describe("Link operations to apply. Required for: link."),
+        // unlink
+        id: z.coerce.number().min(1).optional().describe("Work item ID to remove links from. Required for: unlink."),
+        type: z
+          .enum(["parent", "child", "duplicate", "duplicate of", "related", "successor", "predecessor", "tested by", "tests", "affects", "affected by", "artifact"])
+          .optional()
+          .describe("Link type to remove. Required for: unlink."),
+        url: z.string().optional().describe("URL to match when removing a link. Used for: unlink. If not provided, all links of the specified type are removed."),
+        // link_to_pull_request and add_artifact_link
+        projectId: z.string().optional().describe("The project ID (GUID). Required for: link_to_pull_request, and add_artifact_link (Git/Wiki types)."),
+        repositoryId: z.string().optional().describe("The repository ID. Required for: link_to_pull_request and add_artifact_link (Git types)."),
+        pullRequestId: z.coerce.number().min(1).optional().describe("The pull request ID. Required for: link_to_pull_request; used for: add_artifact_link (Pull Request type)."),
+        workItemId: z.coerce.number().min(1).optional().describe("The work item ID. Required for: link_to_pull_request, add_artifact_link."),
+        pullRequestProjectId: z.string().optional().describe("Project ID containing the pull request. Used for: link_to_pull_request. Defaults to projectId."),
+        // add_artifact_link
+        artifactUri: z.string().optional().describe("The complete VSTFS URI of the artifact. Used for: add_artifact_link. If provided, individual component parameters are ignored."),
+        branchName: z.string().optional().describe("The branch name. Used for: add_artifact_link (Branch type)."),
+        commitId: z.string().optional().describe("The commit SHA hash. Used for: add_artifact_link (Fixed in Commit type)."),
+        buildId: z.coerce.number().min(1).optional().describe("The build ID. Used for: add_artifact_link (Build, Found in build, Integrated in build types)."),
+        wikiId: z.string().optional().describe("The wiki ID (GUID). Used for: add_artifact_link (Wiki type)."),
+        pageId: z.coerce.number().min(1).optional().describe("The numeric wiki page ID. Used for: add_artifact_link (Wiki type). Takes precedence over pagePath."),
+        pagePath: z.string().optional().describe("The full wiki page path. Used for: add_artifact_link (Wiki type) when pageId is not provided."),
+        linkType: z
+          .enum([
+            "Branch",
+            "Build",
+            "Fixed in Changeset",
+            "Fixed in Commit",
+            "Found in build",
+            "Integrated in build",
+            "Model Link",
+            "Pull Request",
+            "Related Workitem",
+            "Result Attachment",
+            "Source Code File",
+            "Tag",
+            "Test Result",
+            "Wiki",
+          ])
+          .optional()
+          .describe("Type of artifact link. Used for: add_artifact_link. Defaults to 'Branch'."),
+        comment: z.string().optional().describe("Comment to include with the artifact link. Used for: add_artifact_link."),
+      },
+      annotations: WRITE_DESTRUCTIVE_ANNOTATIONS,
     },
     async ({
       action,
@@ -1207,4 +1230,4 @@ function getMimeType(fileName: string | undefined): string {
   return (ext && mimeTypes[ext]) ?? "application/octet-stream";
 }
 
-export { WORKITEM_TOOLS, configureWorkItemTools };
+export { WORK_ITEM_TOOLS, configureWorkItemTools };

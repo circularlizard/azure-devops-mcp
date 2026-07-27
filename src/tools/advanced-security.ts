@@ -6,6 +6,7 @@ import { WebApi } from "azure-devops-node-api";
 import { AlertType, AlertValidityStatus, Confidence, Severity, State } from "azure-devops-node-api/interfaces/AlertInterfaces.js";
 import { z } from "zod";
 import { getEnumKeys, mapStringArrayToEnum, mapStringToEnum } from "../utils.js";
+import { READ_ONLY_ANNOTATIONS } from "../shared/tool-annotations.js";
 
 const ADVSEC_TOOLS = {
   get_alerts: "advsec_get_alerts",
@@ -13,54 +14,58 @@ const ADVSEC_TOOLS = {
 };
 
 function configureAdvSecTools(server: McpServer, _: () => Promise<string>, connectionProvider: () => Promise<WebApi>) {
-  server.tool(
+  server.registerTool(
     ADVSEC_TOOLS.get_alerts,
-    "Retrieve Advanced Security alerts for a repository. Results are scoped to the specified project and repository. Branch filters (onlyDefaultBranch, ref) apply only to code, dependency, and license alerts; they are not applicable to secret alerts and are ignored by the service, so they neither include nor exclude secrets. To narrow secret alerts by confidence, pass a single 'confidenceLevels' value ('High' or 'Other'); selecting every level is treated as no confidence filter.",
     {
-      project: z.string().describe("The name or ID of the Azure DevOps project."),
-      repository: z.string().describe("The name or ID of the repository to get alerts for."),
-      alertType: z
-        .enum(getEnumKeys(AlertType) as [string, ...string[]])
-        .optional()
-        .describe("Filter alerts by type. If not specified, returns all alert types."),
-      states: z
-        .array(z.enum(getEnumKeys(State) as [string, ...string[]]))
-        .optional()
-        .describe("Filter alerts by state. If not specified, returns alerts in any state."),
-      severities: z
-        .array(z.enum(getEnumKeys(Severity) as [string, ...string[]]))
-        .optional()
-        .describe("Filter alerts by severity level. If not specified, returns alerts at any severity."),
-      ruleId: z.string().optional().describe("Filter alerts by rule ID."),
-      ruleName: z.string().optional().describe("Filter alerts by rule name."),
-      toolName: z.string().optional().describe("Filter alerts by tool name."),
-      ref: z
-        .string()
-        .optional()
-        .describe(
-          "Filter non-secret alerts by git reference (branch), e.g. 'refs/heads/main'. When omitted and onlyDefaultBranch is true, only alerts on the default branch are returned. Not applicable to secret alerts and ignored by this tool when alertType is 'Secret'. When alertType is unspecified, this filter is still sent and may exclude secret alerts from the results; query alertType 'Secret' separately to retrieve all secrets."
-        ),
-      onlyDefaultBranch: z
-        .boolean()
-        .optional()
-        .describe(
-          "For non-secret alerts: if true (the service default when omitted) only return alerts found on the default branch; if false, return alerts from all branches. Ignored when 'ref' is provided. Not applicable to secret alerts and ignored by this tool when alertType is 'Secret'. When alertType is unspecified, this filter is still sent and may exclude secret alerts from the results; query alertType 'Secret' separately to retrieve all secrets."
-        ),
-      confidenceLevels: z
-        .array(z.enum(getEnumKeys(Confidence) as [string, ...string[]]))
-        .optional()
-        .describe(
-          "Only applicable to secret alerts. Accepted values are 'High' and 'Other'. Pass a single value (e.g. ['High']) to narrow secrets to that confidence level. Leave unset to return secrets without a confidence filter. Do not select both levels to widen results: the Alerts service does not accept a multi-value confidence filter and would return no alerts, so this tool treats an all-levels selection as no filter and omits it."
-        ),
-      validity: z
-        .array(z.enum(getEnumKeys(AlertValidityStatus) as [string, ...string[]]))
-        .optional()
-        .describe(
-          "Only applicable to secret alerts. If omitted, alerts of all validity statuses are returned (no validity filter is applied). Filtering by validity may return fewer alerts than 'top'; use the continuation token to fetch any remaining alerts."
-        ),
-      top: z.coerce.number().optional().default(100).describe("Maximum number of alerts to return. Defaults to 100."),
-      orderBy: z.enum(["id", "firstSeen", "lastSeen", "fixedOn", "severity"]).optional().default("severity").describe("Order results by specified field. Defaults to 'severity'."),
-      continuationToken: z.string().optional().describe("Continuation token for pagination."),
+      description:
+        "Retrieve Advanced Security alerts for a repository. Results are scoped to the specified project and repository. Branch filters (onlyDefaultBranch, ref) apply only to code, dependency, and license alerts; they are not applicable to secret alerts and are ignored by the service, so they neither include nor exclude secrets. To narrow secret alerts by confidence, pass a single 'confidenceLevels' value ('High' or 'Other'); selecting every level is treated as no confidence filter.",
+      inputSchema: {
+        project: z.string().describe("The name or ID of the Azure DevOps project."),
+        repository: z.string().describe("The name or ID of the repository to get alerts for."),
+        alertType: z
+          .enum(getEnumKeys(AlertType) as [string, ...string[]])
+          .optional()
+          .describe("Filter alerts by type. If not specified, returns all alert types."),
+        states: z
+          .array(z.enum(getEnumKeys(State) as [string, ...string[]]))
+          .optional()
+          .describe("Filter alerts by state. If not specified, returns alerts in any state."),
+        severities: z
+          .array(z.enum(getEnumKeys(Severity) as [string, ...string[]]))
+          .optional()
+          .describe("Filter alerts by severity level. If not specified, returns alerts at any severity."),
+        ruleId: z.string().optional().describe("Filter alerts by rule ID."),
+        ruleName: z.string().optional().describe("Filter alerts by rule name."),
+        toolName: z.string().optional().describe("Filter alerts by tool name."),
+        ref: z
+          .string()
+          .optional()
+          .describe(
+            "Filter non-secret alerts by git reference (branch), e.g. 'refs/heads/main'. When omitted and onlyDefaultBranch is true, only alerts on the default branch are returned. Not applicable to secret alerts and ignored by this tool when alertType is 'Secret'. When alertType is unspecified, this filter is still sent and may exclude secret alerts from the results; query alertType 'Secret' separately to retrieve all secrets."
+          ),
+        onlyDefaultBranch: z
+          .boolean()
+          .optional()
+          .describe(
+            "For non-secret alerts: if true (the service default when omitted) only return alerts found on the default branch; if false, return alerts from all branches. Ignored when 'ref' is provided. Not applicable to secret alerts and ignored by this tool when alertType is 'Secret'. When alertType is unspecified, this filter is still sent and may exclude secret alerts from the results; query alertType 'Secret' separately to retrieve all secrets."
+          ),
+        confidenceLevels: z
+          .array(z.enum(getEnumKeys(Confidence) as [string, ...string[]]))
+          .optional()
+          .describe(
+            "Only applicable to secret alerts. Accepted values are 'High' and 'Other'. Pass a single value (e.g. ['High']) to narrow secrets to that confidence level. Leave unset to return secrets without a confidence filter. Do not select both levels to widen results: the Alerts service does not accept a multi-value confidence filter and would return no alerts, so this tool treats an all-levels selection as no filter and omits it."
+          ),
+        validity: z
+          .array(z.enum(getEnumKeys(AlertValidityStatus) as [string, ...string[]]))
+          .optional()
+          .describe(
+            "Only applicable to secret alerts. If omitted, alerts of all validity statuses are returned (no validity filter is applied). Filtering by validity may return fewer alerts than 'top'; use the continuation token to fetch any remaining alerts."
+          ),
+        top: z.coerce.number().optional().default(100).describe("Maximum number of alerts to return. Defaults to 100."),
+        orderBy: z.enum(["id", "firstSeen", "lastSeen", "fixedOn", "severity"]).optional().default("severity").describe("Order results by specified field. Defaults to 'severity'."),
+        continuationToken: z.string().optional().describe("Continuation token for pagination."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ project, repository, alertType, states, severities, ruleId, ruleName, toolName, ref, onlyDefaultBranch, confidenceLevels, validity, top, orderBy, continuationToken }) => {
       try {
@@ -127,14 +132,17 @@ function configureAdvSecTools(server: McpServer, _: () => Promise<string>, conne
     }
   );
 
-  server.tool(
+  server.registerTool(
     ADVSEC_TOOLS.get_alert_details,
-    "Get detailed information about a specific Advanced Security alert.",
     {
-      project: z.string().describe("The name or ID of the Azure DevOps project."),
-      repository: z.string().describe("The name or ID of the repository containing the alert."),
-      alertId: z.coerce.number().min(1).describe("The ID of the alert to retrieve details for."),
-      ref: z.string().optional().describe("Git reference (branch) to filter the alert."),
+      description: "Get detailed information about a specific Advanced Security alert.",
+      inputSchema: {
+        project: z.string().describe("The name or ID of the Azure DevOps project."),
+        repository: z.string().describe("The name or ID of the repository containing the alert."),
+        alertId: z.coerce.number().min(1).describe("The ID of the alert to retrieve details for."),
+        ref: z.string().optional().describe("Git reference (branch) to filter the alert."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ project, repository, alertId, ref }) => {
       try {

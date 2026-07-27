@@ -27,6 +27,7 @@ import { GitRepository } from "azure-devops-node-api/interfaces/TfvcInterfaces.j
 import { WebApiTagDefinition } from "azure-devops-node-api/interfaces/CoreInterfaces.js";
 import { extractAdoStreamError, getEnumKeys, streamToString, apiVersion } from "../utils.js";
 import { orgName } from "../index.js";
+import { READ_ONLY_ANNOTATIONS, WRITE_CREATE_ANNOTATIONS } from "../shared/tool-annotations.js";
 
 const REPO_TOOLS = {
   repo_repository: "repo_repository",
@@ -139,16 +140,19 @@ function buildVersionDescriptor(version?: string, versionType?: string): GitVers
 
 function configureRepoTools(server: McpServer, tokenProvider: () => Promise<string>, connectionProvider: () => Promise<WebApi>, userAgentProvider: () => string) {
   // --- repo_repository -------------------------------------------------------
-  server.tool(
+  server.registerTool(
     REPO_TOOLS.repo_repository,
-    "Retrieve repository data for an organization or project. Use the action parameter to specify the operation.",
     {
-      action: z.enum(["get", "list"]).describe("The action to perform. Options: get (get a repository by name or ID), list (list repositories in a project)."),
-      project: z.string().optional().describe("The name or ID of the Azure DevOps project. Required for get and list."),
-      repositoryNameOrId: z.string().optional().describe("Repository name or ID. Required for get."),
-      top: z.coerce.number().default(100).describe("The maximum number of repositories to return. Used for list. Defaults to 100."),
-      skip: z.coerce.number().default(0).describe("The number of repositories to skip. Used for list. Defaults to 0."),
-      repoNameFilter: z.string().optional().describe("Optional filter to search for repositories by name. Used for list."),
+      description: "Retrieve repository data for an organization or project. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z.enum(["get", "list"]).describe("The action to perform. Options: get (get a repository by name or ID), list (list repositories in a project)."),
+        project: z.string().optional().describe("The name or ID of the Azure DevOps project. Required for get and list."),
+        repositoryNameOrId: z.string().optional().describe("Repository name or ID. Required for get."),
+        top: z.coerce.number().default(100).describe("The maximum number of repositories to return. Used for list. Defaults to 100."),
+        skip: z.coerce.number().default(0).describe("The number of repositories to skip. Used for list. Defaults to 0."),
+        repoNameFilter: z.string().optional().describe("Optional filter to search for repositories by name. Used for list."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ action, project, repositoryNameOrId, top, skip, repoNameFilter }) => {
       try {
@@ -197,40 +201,43 @@ function configureRepoTools(server: McpServer, tokenProvider: () => Promise<stri
   );
 
   // --- repo_pull_request -----------------------------------------------------
-  server.tool(
+  server.registerTool(
     REPO_TOOLS.repo_pull_request,
-    "Retrieve pull request data. Use the action parameter to specify the operation.",
     {
-      action: z
-        .enum(["get", "list", "list_by_commits"])
-        .describe(
-          "The action to perform. Options: get (get a pull request by ID), list (list pull requests in a repository or project), list_by_commits (find pull requests that contain specific commit IDs)."
-        ),
-      repositoryId: z.string().optional().describe("The ID or name of the repository. Required for get. Optional for list. When using a name instead of a GUID, project must also be provided."),
-      pullRequestId: z.coerce.number().min(1).optional().describe("The ID of the pull request. Required for get."),
-      project: z.string().optional().describe("Project ID or project name. Required for list_by_commits. Optional for get and list."),
-      includeWorkItemRefs: z.boolean().optional().default(false).describe("Whether to include work item references. Used for get."),
-      includeLabels: z.boolean().optional().default(false).describe("Whether to include labels. Used for get."),
-      includeChangedFiles: z.boolean().optional().default(false).describe("Whether to include the list of changed files. Used for get."),
-      top: z.coerce.number().default(100).describe("The maximum number of pull requests to return. Used for list. Defaults to 100."),
-      skip: z.coerce.number().default(0).describe("The number of pull requests to skip. Used for list. Defaults to 0."),
-      created_by_me: z.boolean().default(false).describe("Filter pull requests created by the current user. Used for list."),
-      created_by_user: z.string().optional().describe("Filter pull requests created by a specific user email. Used for list."),
-      i_am_reviewer: z.boolean().default(false).describe("Filter pull requests where the current user is a reviewer. Used for list."),
-      user_is_reviewer: z.string().optional().describe("Filter pull requests where a specific user is a reviewer (email). Used for list."),
-      status: z
-        .enum(getEnumKeys(PullRequestStatus) as [string, ...string[]])
-        .default("Active")
-        .describe("Filter pull requests by status. Used for list. Defaults to 'Active'."),
-      sourceRefName: z.string().optional().describe("Filter by source branch. Used for list."),
-      targetRefName: z.string().optional().describe("Filter by target branch. Used for list and create."),
-      repository: z.string().optional().describe("Repository name or ID. Required for list_by_commits."),
-      commits: z.array(z.string()).optional().describe("Array of commit IDs to query. Required for list_by_commits."),
-      queryType: z
-        .enum(Object.values(GitPullRequestQueryType).filter((v): v is string => typeof v === "string") as [string, ...string[]])
-        .optional()
-        .default(GitPullRequestQueryType[GitPullRequestQueryType.LastMergeCommit])
-        .describe("Type of commit query. Used for list_by_commits."),
+      description: "Retrieve pull request data. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["get", "list", "list_by_commits"])
+          .describe(
+            "The action to perform. Options: get (get a pull request by ID), list (list pull requests in a repository or project), list_by_commits (find pull requests that contain specific commit IDs)."
+          ),
+        repositoryId: z.string().optional().describe("The ID or name of the repository. Required for get. Optional for list. When using a name instead of a GUID, project must also be provided."),
+        pullRequestId: z.coerce.number().min(1).optional().describe("The ID of the pull request. Required for get."),
+        project: z.string().optional().describe("Project ID or project name. Required for list_by_commits. Optional for get and list."),
+        includeWorkItemRefs: z.boolean().optional().default(false).describe("Whether to include work item references. Used for get."),
+        includeLabels: z.boolean().optional().default(false).describe("Whether to include labels. Used for get."),
+        includeChangedFiles: z.boolean().optional().default(false).describe("Whether to include the list of changed files. Used for get."),
+        top: z.coerce.number().default(100).describe("The maximum number of pull requests to return. Used for list. Defaults to 100."),
+        skip: z.coerce.number().default(0).describe("The number of pull requests to skip. Used for list. Defaults to 0."),
+        created_by_me: z.boolean().default(false).describe("Filter pull requests created by the current user. Used for list."),
+        created_by_user: z.string().optional().describe("Filter pull requests created by a specific user email. Used for list."),
+        i_am_reviewer: z.boolean().default(false).describe("Filter pull requests where the current user is a reviewer. Used for list."),
+        user_is_reviewer: z.string().optional().describe("Filter pull requests where a specific user is a reviewer (email). Used for list."),
+        status: z
+          .enum(getEnumKeys(PullRequestStatus) as [string, ...string[]])
+          .default("Active")
+          .describe("Filter pull requests by status. Used for list. Defaults to 'Active'."),
+        sourceRefName: z.string().optional().describe("Filter by source branch. Used for list."),
+        targetRefName: z.string().optional().describe("Filter by target branch. Used for list and create."),
+        repository: z.string().optional().describe("Repository name or ID. Required for list_by_commits."),
+        commits: z.array(z.string()).optional().describe("Array of commit IDs to query. Required for list_by_commits."),
+        queryType: z
+          .enum(Object.values(GitPullRequestQueryType).filter((v): v is string => typeof v === "string") as [string, ...string[]])
+          .optional()
+          .default(GitPullRequestQueryType[GitPullRequestQueryType.LastMergeCommit])
+          .describe("Type of commit query. Used for list_by_commits."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({
       action,
@@ -389,26 +396,29 @@ function configureRepoTools(server: McpServer, tokenProvider: () => Promise<stri
   );
 
   // --- repo_pull_request_thread ----------------------------------------------
-  server.tool(
+  server.registerTool(
     REPO_TOOLS.repo_pull_request_thread,
-    "Retrieve pull request thread and comment data. Use the action parameter to specify the operation.",
     {
-      action: z.enum(["list", "list_comments"]).describe("The action to perform. Options: list (list comment threads on a pull request), list_comments (list comments in a specific thread)."),
-      repositoryId: z.string().describe("The ID or name of the repository. When using a name instead of a GUID, project must also be provided."),
-      pullRequestId: z.coerce.number().min(1).describe("The ID of the pull request."),
-      project: z.string().optional().describe("Project ID or project name. Required when repositoryId is a name instead of a GUID."),
-      threadId: z.coerce.number().min(1).optional().describe("The ID of the thread. Required for list_comments."),
-      iteration: z.coerce.number().min(1).optional().describe("The iteration ID. Used for list."),
-      baseIteration: z.coerce.number().min(1).optional().describe("The base iteration ID. Used for list."),
-      top: z.coerce.number().default(100).describe("The maximum number of results to return. Defaults to 100."),
-      skip: z.coerce.number().default(0).describe("The number of results to skip. Defaults to 0."),
-      fullResponse: z.boolean().optional().default(false).describe("Return full JSON response instead of trimmed data."),
-      status: z
-        .enum(getEnumKeys(CommentThreadStatus) as [string, ...string[]])
-        .optional()
-        .describe("Filter threads by status. Used for list."),
-      authorEmail: z.string().optional().describe("Filter threads by the email of the thread author. Used for list."),
-      authorDisplayName: z.string().optional().describe("Filter threads by the display name of the thread author. Used for list."),
+      description: "Retrieve pull request thread and comment data. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z.enum(["list", "list_comments"]).describe("The action to perform. Options: list (list comment threads on a pull request), list_comments (list comments in a specific thread)."),
+        repositoryId: z.string().describe("The ID or name of the repository. When using a name instead of a GUID, project must also be provided."),
+        pullRequestId: z.coerce.number().min(1).describe("The ID of the pull request."),
+        project: z.string().optional().describe("Project ID or project name. Required when repositoryId is a name instead of a GUID."),
+        threadId: z.coerce.number().min(1).optional().describe("The ID of the thread. Required for list_comments."),
+        iteration: z.coerce.number().min(1).optional().describe("The iteration ID. Used for list."),
+        baseIteration: z.coerce.number().min(1).optional().describe("The base iteration ID. Used for list."),
+        top: z.coerce.number().default(100).describe("The maximum number of results to return. Defaults to 100."),
+        skip: z.coerce.number().default(0).describe("The number of results to skip. Defaults to 0."),
+        fullResponse: z.boolean().optional().default(false).describe("Return full JSON response instead of trimmed data."),
+        status: z
+          .enum(getEnumKeys(CommentThreadStatus) as [string, ...string[]])
+          .optional()
+          .describe("Filter threads by status. Used for list."),
+        authorEmail: z.string().optional().describe("Filter threads by the email of the thread author. Used for list."),
+        authorDisplayName: z.string().optional().describe("Filter threads by the display name of the thread author. Used for list."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ action, repositoryId, pullRequestId, project, threadId, iteration, baseIteration, top, skip, fullResponse, status, authorEmail, authorDisplayName }) => {
       try {
@@ -470,18 +480,21 @@ function configureRepoTools(server: McpServer, tokenProvider: () => Promise<stri
   );
 
   // --- repo_branch -----------------------------------------------------------
-  server.tool(
+  server.registerTool(
     REPO_TOOLS.repo_branch,
-    "Retrieve branch data for a repository. Use the action parameter to specify the operation.",
     {
-      action: z
-        .enum(["get", "list", "list_mine"])
-        .describe("The action to perform. Options: get (get a branch by name), list (list branches in a repository), list_mine (list branches the current user has pushed to)."),
-      repositoryId: z.string().describe("The ID or name of the repository. When using a name instead of a GUID, project must also be provided."),
-      project: z.string().optional().describe("Project ID or project name. Required when repositoryId is a name instead of a GUID."),
-      branchName: z.string().optional().describe("The name of the branch. Required for get."),
-      top: z.coerce.number().default(100).describe("The maximum number of branches to return. Used for list and list_mine. Defaults to 100."),
-      filterContains: z.string().optional().describe("Filter branches containing this string. Used for list and list_mine."),
+      description: "Retrieve branch data for a repository. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["get", "list", "list_mine"])
+          .describe("The action to perform. Options: get (get a branch by name), list (list branches in a repository), list_mine (list branches the current user has pushed to)."),
+        repositoryId: z.string().describe("The ID or name of the repository. When using a name instead of a GUID, project must also be provided."),
+        project: z.string().optional().describe("Project ID or project name. Required when repositoryId is a name instead of a GUID."),
+        branchName: z.string().optional().describe("The name of the branch. Required for get."),
+        top: z.coerce.number().default(100).describe("The maximum number of branches to return. Used for list and list_mine. Defaults to 100."),
+        filterContains: z.string().optional().describe("Filter branches containing this string. Used for list and list_mine."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ action, repositoryId, project, branchName, top, filterContains }) => {
       try {
@@ -523,24 +536,27 @@ function configureRepoTools(server: McpServer, tokenProvider: () => Promise<stri
   // --- repo_file -------------------------------------------------------------
   const fileVersionTypeStrings = getEnumKeys(GitVersionType);
 
-  server.tool(
+  server.registerTool(
     REPO_TOOLS.repo_file,
-    "Retrieve file data from a repository. Use the action parameter to specify the operation.",
     {
-      action: z
-        .enum(["get_content", "list_directory"])
-        .describe("The action to perform. Options: get_content (get the text content of a file at a specific branch, tag, or commit), list_directory (list files and folders in a directory)."),
-      repositoryId: z.string().describe("The ID or name of the repository."),
-      path: z.string().optional().default("/").describe("The file or directory path. Required for get_content. Defaults to '/' for list_directory."),
-      project: z.string().optional().describe("Project ID or project name. Required when repositoryId is a name."),
-      version: z.string().optional().describe("Version string: branch name, tag name, or commit SHA."),
-      versionType: z
-        .enum(fileVersionTypeStrings as [string, ...string[]])
-        .optional()
-        .default("Commit")
-        .describe("How to interpret the version parameter. Used for get_content. Defaults to 'Commit'."),
-      recursive: z.boolean().optional().default(false).describe("Whether to list items recursively. Used for list_directory. Defaults to false."),
-      recursionDepth: z.coerce.number().min(1).optional().default(1).describe("Maximum depth for recursive listing. Used for list_directory when recursive is true. Defaults to 1."),
+      description: "Retrieve file data from a repository. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["get_content", "list_directory"])
+          .describe("The action to perform. Options: get_content (get the text content of a file at a specific branch, tag, or commit), list_directory (list files and folders in a directory)."),
+        repositoryId: z.string().describe("The ID or name of the repository."),
+        path: z.string().optional().default("/").describe("The file or directory path. Required for get_content. Defaults to '/' for list_directory."),
+        project: z.string().optional().describe("Project ID or project name. Required when repositoryId is a name."),
+        version: z.string().optional().describe("Version string: branch name, tag name, or commit SHA."),
+        versionType: z
+          .enum(fileVersionTypeStrings as [string, ...string[]])
+          .optional()
+          .default("Commit")
+          .describe("How to interpret the version parameter. Used for get_content. Defaults to 'Commit'."),
+        recursive: z.boolean().optional().default(false).describe("Whether to list items recursively. Used for list_directory. Defaults to false."),
+        recursionDepth: z.coerce.number().min(1).optional().default(1).describe("Maximum depth for recursive listing. Used for list_directory when recursive is true. Defaults to 1."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ action, repositoryId, path, project, version, versionType, recursive, recursionDepth }) => {
       try {
@@ -613,24 +629,27 @@ function configureRepoTools(server: McpServer, tokenProvider: () => Promise<stri
   );
 
   // --- repo_search_commits ---------------------------------------------------
-  server.tool(
+  server.registerTool(
     REPO_TOOLS.repo_search_commits,
-    "Search commits with filtering by text, author, date range, and more.",
     {
-      searchText: z.string().describe("Keywords to search for in commit messages"),
-      project: z
-        .union([z.string().transform(/* istanbul ignore next */ (value) => [value]), z.array(z.string())])
-        .optional()
-        .describe("The names of the projects to search within. If omitted, searches across all projects in the organization."),
-      repository: z.array(z.string()).optional().describe("The names of the repositories to search within."),
-      branch: z.array(z.string()).optional().describe("The names of the repository branches to search within."),
-      author: z.array(z.string()).optional().describe("The names of the commit authors to search for. Only full display names are supported."),
-      commitStartDate: z.string().optional().describe("Filter commits from this date (format: 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM:SS')"),
-      commitEndDate: z.string().optional().describe("Filter commits up to this date (format: 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM:SS')"),
-      orderBy: z.enum(["ASC", "DESC"]).optional().describe("Sort commits by date: 'ASC' for oldest-first, 'DESC' for newest-first."),
-      includeFacets: z.boolean().default(false).describe("Include facets in the search results"),
-      skip: z.coerce.number().default(0).describe("Number of results to skip"),
-      top: z.coerce.number().default(10).describe("Maximum number of results to return"),
+      description: "Search commits with filtering by text, author, date range, and more.",
+      inputSchema: {
+        searchText: z.string().describe("Keywords to search for in commit messages"),
+        project: z
+          .union([z.string().transform(/* istanbul ignore next */ (value) => [value]), z.array(z.string())])
+          .optional()
+          .describe("The names of the projects to search within. If omitted, searches across all projects in the organization."),
+        repository: z.array(z.string()).optional().describe("The names of the repositories to search within."),
+        branch: z.array(z.string()).optional().describe("The names of the repository branches to search within."),
+        author: z.array(z.string()).optional().describe("The names of the commit authors to search for. Only full display names are supported."),
+        commitStartDate: z.string().optional().describe("Filter commits from this date (format: 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM:SS')"),
+        commitEndDate: z.string().optional().describe("Filter commits up to this date (format: 'YYYY-MM-DD' or 'YYYY-MM-DDTHH:MM:SS')"),
+        orderBy: z.enum(["ASC", "DESC"]).optional().describe("Sort commits by date: 'ASC' for oldest-first, 'DESC' for newest-first."),
+        includeFacets: z.boolean().default(false).describe("Include facets in the search results"),
+        skip: z.coerce.number().default(0).describe("Number of results to skip"),
+        top: z.coerce.number().default(10).describe("Maximum number of results to return"),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ searchText, project, repository, branch, author, commitStartDate, commitEndDate, orderBy, includeFacets, skip, top }) => {
       const accessToken = await tokenProvider();
@@ -672,39 +691,42 @@ function configureRepoTools(server: McpServer, tokenProvider: () => Promise<stri
   );
 
   // --- repo_pull_request_write -----------------------------------------------
-  server.tool(
+  server.registerTool(
     REPO_TOOLS.repo_pull_request_write,
-    "Write operations for pull requests. Use the action parameter to specify the operation.",
     {
-      action: z
-        .enum(["create", "update", "update_reviewers", "vote"])
-        .describe(
-          "The action to perform. Options: create (create a pull request), update (update a pull request, including setting autocomplete), update_reviewers (add or remove pull request reviewers), vote (cast a vote on a pull request)."
-        ),
-      repositoryId: z.string().optional().describe("The ID or name of the repository. Required for all actions. When using a name instead of a GUID, project must also be provided."),
-      pullRequestId: z.coerce.number().min(1).optional().describe("The ID of the pull request. Required for update, update_reviewers, and vote."),
-      project: z.string().optional().describe("Project ID or project name. Required when repositoryId is a name instead of a GUID."),
-      sourceRefName: z.string().optional().describe("The source branch name (e.g., 'refs/heads/feature-branch'). Required for create."),
-      targetRefName: z.string().optional().describe("The target branch name (e.g., 'refs/heads/main'). Required for create. Optional for update."),
-      title: z.string().optional().describe("The title of the pull request. Required for create. Optional for update."),
-      description: z.string().max(4000).optional().describe("The description of the pull request. Max 4000 characters. Used for create and update."),
-      isDraft: z.boolean().optional().default(false).describe("Whether the pull request is a draft. Used for create and update."),
-      workItems: z.string().optional().describe("Work item IDs to associate, space-separated. Used for create."),
-      forkSourceRepositoryId: z.string().optional().describe("The ID of the fork repository. Used for create."),
-      labels: z.array(z.string()).optional().describe("Array of label names. Used for create and update."),
-      status: z.enum(["Active", "Abandoned"]).optional().describe("The new status. Used for update."),
-      autoComplete: z.boolean().optional().describe("Set autocomplete when all requirements are met. Used for update."),
-      mergeStrategy: z
-        .enum(getEnumKeys(GitPullRequestMergeStrategy) as [string, ...string[]])
-        .optional()
-        .describe("The merge strategy for autocomplete. Used for update."),
-      mergeCommitMessage: z.string().optional().describe("Commit message for autocomplete. Used for update."),
-      deleteSourceBranch: z.boolean().optional().default(false).describe("Delete source branch on autocomplete. Used for update."),
-      transitionWorkItems: z.boolean().optional().default(true).describe("Transition work items on autocomplete. Used for update."),
-      bypassReason: z.string().optional().describe("Reason for bypassing branch policies. Used for update."),
-      reviewerIds: z.array(z.string()).optional().describe("List of reviewer IDs. Required for update_reviewers."),
-      reviewerAction: z.enum(["add", "remove"]).optional().describe("Whether to add or remove reviewers. Required for update_reviewers."),
-      vote: z.enum(["Approved", "ApprovedWithSuggestions", "NoVote", "WaitingForAuthor", "Rejected"]).optional().describe("The vote to cast. Required for vote."),
+      description: "Write operations for pull requests. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["create", "update", "update_reviewers", "vote"])
+          .describe(
+            "The action to perform. Options: create (create a pull request), update (update a pull request, including setting autocomplete), update_reviewers (add or remove pull request reviewers), vote (cast a vote on a pull request)."
+          ),
+        repositoryId: z.string().optional().describe("The ID or name of the repository. Required for all actions. When using a name instead of a GUID, project must also be provided."),
+        pullRequestId: z.coerce.number().min(1).optional().describe("The ID of the pull request. Required for update, update_reviewers, and vote."),
+        project: z.string().optional().describe("Project ID or project name. Required when repositoryId is a name instead of a GUID."),
+        sourceRefName: z.string().optional().describe("The source branch name (e.g., 'refs/heads/feature-branch'). Required for create."),
+        targetRefName: z.string().optional().describe("The target branch name (e.g., 'refs/heads/main'). Required for create. Optional for update."),
+        title: z.string().optional().describe("The title of the pull request. Required for create. Optional for update."),
+        description: z.string().max(4000).optional().describe("The description of the pull request. Max 4000 characters. Used for create and update."),
+        isDraft: z.boolean().optional().default(false).describe("Whether the pull request is a draft. Used for create and update."),
+        workItems: z.string().optional().describe("Work item IDs to associate, space-separated. Used for create."),
+        forkSourceRepositoryId: z.string().optional().describe("The ID of the fork repository. Used for create."),
+        labels: z.array(z.string()).optional().describe("Array of label names. Used for create and update."),
+        status: z.enum(["Active", "Abandoned"]).optional().describe("The new status. Used for update."),
+        autoComplete: z.boolean().optional().describe("Set autocomplete when all requirements are met. Used for update."),
+        mergeStrategy: z
+          .enum(getEnumKeys(GitPullRequestMergeStrategy) as [string, ...string[]])
+          .optional()
+          .describe("The merge strategy for autocomplete. Used for update."),
+        mergeCommitMessage: z.string().optional().describe("Commit message for autocomplete. Used for update."),
+        deleteSourceBranch: z.boolean().optional().default(false).describe("Delete source branch on autocomplete. Used for update."),
+        transitionWorkItems: z.boolean().optional().default(true).describe("Transition work items on autocomplete. Used for update."),
+        bypassReason: z.string().optional().describe("Reason for bypassing branch policies. Used for update."),
+        reviewerIds: z.array(z.string()).optional().describe("List of reviewer IDs. Required for update_reviewers."),
+        reviewerAction: z.enum(["add", "remove"]).optional().describe("Whether to add or remove reviewers. Required for update_reviewers."),
+        vote: z.enum(["Approved", "ApprovedWithSuggestions", "NoVote", "WaitingForAuthor", "Rejected"]).optional().describe("The vote to cast. Required for vote."),
+      },
+      annotations: WRITE_CREATE_ANNOTATIONS,
     },
     async ({
       action,
@@ -910,31 +932,34 @@ function configureRepoTools(server: McpServer, tokenProvider: () => Promise<stri
   );
 
   // --- repo_pull_request_thread_write ----------------------------------------
-  server.tool(
+  server.registerTool(
     REPO_TOOLS.repo_pull_request_thread_write,
-    "Write operations for pull request comment threads. Use the action parameter to specify the operation.",
     {
-      action: z
-        .enum(["create", "reply", "update_status"])
-        .describe(
-          "The action to perform. Options: create (create a new comment thread on a pull request), reply (reply to a comment in a thread), update_status (update the status of a comment thread)."
-        ),
-      repositoryId: z.string().describe("The ID or name of the repository. When using a name instead of a GUID, project must also be provided."),
-      pullRequestId: z.coerce.number().min(1).describe("The ID of the pull request."),
-      project: z.string().optional().describe("Project ID or project name. Required when repositoryId is a name instead of a GUID."),
-      threadId: z.coerce.number().min(1).optional().describe("The ID of the thread. Required for reply and update_status."),
-      content: z.string().optional().describe("The content of the comment. Required for create and reply."),
-      status: z
-        .enum(getEnumKeys(CommentThreadStatus) as [string, ...string[]])
-        .optional()
-        .default(CommentThreadStatus[CommentThreadStatus.Active])
-        .describe("The thread status. Used for create (defaults to 'Active') and required for update_status."),
-      filePath: z.string().optional().describe("The file path for the comment thread. Used for create."),
-      fullResponse: z.boolean().optional().default(false).describe("Return full JSON response. Used for reply."),
-      rightFileStartLine: z.coerce.number().min(1).optional().describe("Start line in the right file. Used for create."),
-      rightFileStartOffset: z.number().optional().describe("Start character offset in the right file. Used for create."),
-      rightFileEndLine: z.number().optional().describe("End line in the right file. Used for create."),
-      rightFileEndOffset: z.number().optional().describe("End character offset in the right file. Used for create."),
+      description: "Write operations for pull request comment threads. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["create", "reply", "update_status"])
+          .describe(
+            "The action to perform. Options: create (create a new comment thread on a pull request), reply (reply to a comment in a thread), update_status (update the status of a comment thread)."
+          ),
+        repositoryId: z.string().describe("The ID or name of the repository. When using a name instead of a GUID, project must also be provided."),
+        pullRequestId: z.coerce.number().min(1).describe("The ID of the pull request."),
+        project: z.string().optional().describe("Project ID or project name. Required when repositoryId is a name instead of a GUID."),
+        threadId: z.coerce.number().min(1).optional().describe("The ID of the thread. Required for reply and update_status."),
+        content: z.string().optional().describe("The content of the comment. Required for create and reply."),
+        status: z
+          .enum(getEnumKeys(CommentThreadStatus) as [string, ...string[]])
+          .optional()
+          .default(CommentThreadStatus[CommentThreadStatus.Active])
+          .describe("The thread status. Used for create (defaults to 'Active') and required for update_status."),
+        filePath: z.string().optional().describe("The file path for the comment thread. Used for create."),
+        fullResponse: z.boolean().optional().default(false).describe("Return full JSON response. Used for reply."),
+        rightFileStartLine: z.coerce.number().min(1).optional().describe("Start line in the right file. Used for create."),
+        rightFileStartOffset: z.number().optional().describe("Start character offset in the right file. Used for create."),
+        rightFileEndLine: z.number().optional().describe("End line in the right file. Used for create."),
+        rightFileEndOffset: z.number().optional().describe("End character offset in the right file. Used for create."),
+      },
+      annotations: WRITE_CREATE_ANNOTATIONS,
     },
     async ({ action, repositoryId, pullRequestId, project, threadId, content, status, filePath, fullResponse, rightFileStartLine, rightFileStartOffset, rightFileEndLine, rightFileEndOffset }) => {
       try {
@@ -1038,17 +1063,20 @@ function configureRepoTools(server: McpServer, tokenProvider: () => Promise<stri
   );
 
   // --- repo_create_branch ----------------------------------------------------
-  server.tool(
+  server.registerTool(
     REPO_TOOLS.repo_create_branch,
-    "Create a new branch in the repository.",
     {
-      repositoryId: z
-        .string()
-        .describe("The ID or name of the repository where the branch will be created. When using a repository name instead of a GUID, the project parameter must also be provided."),
-      branchName: z.string().describe("The name of the new branch to create, e.g., 'feature-branch'."),
-      sourceBranchName: z.string().optional().default("main").describe("The name of the source branch to create the new branch from. Defaults to 'main'."),
-      sourceCommitId: z.string().optional().describe("The commit ID to create the branch from. If not provided, uses the latest commit of the source branch."),
-      project: z.string().optional().describe("Project ID or project name. Required when repositoryId is a repository name instead of a GUID."),
+      description: "Create a new branch in the repository.",
+      inputSchema: {
+        repositoryId: z
+          .string()
+          .describe("The ID or name of the repository where the branch will be created. When using a repository name instead of a GUID, the project parameter must also be provided."),
+        branchName: z.string().describe("The name of the new branch to create, e.g., 'feature-branch'."),
+        sourceBranchName: z.string().optional().default("main").describe("The name of the source branch to create the new branch from. Defaults to 'main'."),
+        sourceCommitId: z.string().optional().describe("The commit ID to create the branch from. If not provided, uses the latest commit of the source branch."),
+        project: z.string().optional().describe("Project ID or project name. Required when repositoryId is a repository name instead of a GUID."),
+      },
+      annotations: WRITE_CREATE_ANNOTATIONS,
     },
     async ({ repositoryId, branchName, sourceBranchName, sourceCommitId, project }) => {
       try {

@@ -6,6 +6,7 @@ import { WebApi } from "azure-devops-node-api";
 import { TestPlanCreateParams } from "azure-devops-node-api/interfaces/TestPlanInterfaces.js";
 import { z } from "zod";
 import { apiVersion } from "../utils.js";
+import { READ_ONLY_ANNOTATIONS, WRITE_CREATE_ANNOTATIONS } from "../shared/tool-annotations.js";
 
 const TEST_PLAN_TOOLS = {
   testplan: "testplan",
@@ -17,19 +18,22 @@ const TEST_PLAN_TOOLS = {
 
 function configureTestPlanTools(server: McpServer, tokenProvider: () => Promise<string>, connectionProvider: () => Promise<WebApi>, userAgentProvider?: () => string) {
   // ─── testplan (read-only) ────────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     TEST_PLAN_TOOLS.testplan,
-    "Retrieve test plan data for a project. Use the action parameter to specify the operation.",
     {
-      action: z
-        .enum(["list_plans", "list_suites", "list_cases"])
-        .describe("The action to perform. Options: list_plans (list test plans in a project), list_suites (list test suites under a test plan), list_cases (list test cases under a test suite)."),
-      project: z.string().describe("The unique identifier (ID or name) of the Azure DevOps project."),
-      filterActivePlans: z.boolean().default(true).describe("Filter to include only active test plans. Used for: list_plans. Defaults to true."),
-      includePlanDetails: z.boolean().default(false).describe("Include detailed information about each test plan. Used for: list_plans."),
-      planId: z.coerce.number().min(1).optional().describe("The ID of the test plan. Required for: list_suites, list_cases."),
-      suiteId: z.coerce.number().min(1).optional().describe("The ID of the test suite. Required for: list_cases."),
-      continuationToken: z.string().optional().describe("Token to continue fetching results from a previous request. Used for: list_plans, list_suites, list_cases."),
+      description: "Retrieve test plan data for a project. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["list_plans", "list_suites", "list_cases"])
+          .describe("The action to perform. Options: list_plans (list test plans in a project), list_suites (list test suites under a test plan), list_cases (list test cases under a test suite)."),
+        project: z.string().describe("The unique identifier (ID or name) of the Azure DevOps project."),
+        filterActivePlans: z.boolean().default(true).describe("Filter to include only active test plans. Used for: list_plans. Defaults to true."),
+        includePlanDetails: z.boolean().default(false).describe("Include detailed information about each test plan. Used for: list_plans."),
+        planId: z.coerce.number().min(1).optional().describe("The ID of the test plan. Required for: list_suites, list_cases."),
+        suiteId: z.coerce.number().min(1).optional().describe("The ID of the test suite. Required for: list_cases."),
+        continuationToken: z.string().optional().describe("Token to continue fetching results from a previous request. Used for: list_plans, list_suites, list_cases."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ action, project, filterActivePlans, includePlanDetails, planId, suiteId, continuationToken }) => {
       try {
@@ -155,13 +159,17 @@ function configureTestPlanTools(server: McpServer, tokenProvider: () => Promise<
   );
 
   // ─── testplan_show_test_results_from_build_id ──────────────────────────────────────
-  server.tool(
+  server.registerTool(
     TEST_PLAN_TOOLS.test_results_from_build_id,
-    "Gets a list of test results for a given project and build ID. Can filter by test outcome (e.g. Failed, Passed, Aborted). Returns test case titles, error messages, stack traces, and outcomes. Efficiently handles builds with large numbers of test runs.",
     {
-      project: z.string().describe("The unique identifier (ID or name) of the Azure DevOps project."),
-      buildid: z.coerce.number().min(1).describe("The ID of the build."),
-      outcomes: z.array(z.string()).optional().describe("Filter results by test outcome, e.g. ['Failed', 'Passed', 'Aborted']."),
+      description:
+        "Gets a list of test results for a given project and build ID. Can filter by test outcome (e.g. Failed, Passed, Aborted). Returns test case titles, error messages, stack traces, and outcomes. Efficiently handles builds with large numbers of test runs.",
+      inputSchema: {
+        project: z.string().describe("The unique identifier (ID or name) of the Azure DevOps project."),
+        buildid: z.coerce.number().min(1).describe("The ID of the build."),
+        outcomes: z.array(z.string()).optional().describe("Filter results by test outcome, e.g. ['Failed', 'Passed', 'Aborted']."),
+      },
+      annotations: READ_ONLY_ANNOTATIONS,
     },
     async ({ project, buildid, outcomes }) => {
       try {
@@ -209,18 +217,21 @@ function configureTestPlanTools(server: McpServer, tokenProvider: () => Promise<
   );
 
   // ─── testplan_test_plan_write ─────────────────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     TEST_PLAN_TOOLS.testplan_test_plan_write,
-    "Write operations for test plans. Use the action parameter to specify the operation.",
     {
-      action: z.enum(["create"]).describe("The action to perform. Options: create (create a new test plan)."),
-      project: z.string().describe("The unique identifier (ID or name) of the Azure DevOps project."),
-      name: z.string().optional().describe("The name of the test plan. Required for: create."),
-      iteration: z.string().optional().describe("The iteration path for the test plan. Required for: create."),
-      description: z.string().optional().describe("The description of the test plan. Used for: create."),
-      startDate: z.string().optional().describe("The start date of the test plan. Used for: create."),
-      endDate: z.string().optional().describe("The end date of the test plan. Used for: create."),
-      areaPath: z.string().optional().describe("The area path for the test plan. Used for: create."),
+      description: "Write operations for test plans. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z.enum(["create"]).describe("The action to perform. Options: create (create a new test plan)."),
+        project: z.string().describe("The unique identifier (ID or name) of the Azure DevOps project."),
+        name: z.string().optional().describe("The name of the test plan. Required for: create."),
+        iteration: z.string().optional().describe("The iteration path for the test plan. Required for: create."),
+        description: z.string().optional().describe("The description of the test plan. Used for: create."),
+        startDate: z.string().optional().describe("The start date of the test plan. Used for: create."),
+        endDate: z.string().optional().describe("The end date of the test plan. Used for: create."),
+        areaPath: z.string().optional().describe("The area path for the test plan. Used for: create."),
+      },
+      annotations: WRITE_CREATE_ANNOTATIONS,
     },
     async ({ project, name, iteration, description, startDate, endDate, areaPath }) => {
       try {
@@ -255,19 +266,22 @@ function configureTestPlanTools(server: McpServer, tokenProvider: () => Promise<
   );
 
   // ─── testplan_test_suite_write ────────────────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     TEST_PLAN_TOOLS.testplan_test_suite_write,
-    "Write operations for test suites. Use the action parameter to specify the operation.",
     {
-      action: z
-        .enum(["create", "add_test_cases"])
-        .describe("The action to perform. Options: create (create a new test suite in a test plan), add_test_cases (add existing test cases to a test suite)."),
-      project: z.string().describe("The unique identifier (ID or name) of the Azure DevOps project."),
-      planId: z.coerce.number().min(1).optional().describe("The ID of the test plan. Required for: create, add_test_cases."),
-      parentSuiteId: z.coerce.number().min(1).optional().describe("ID of the parent suite under which the new suite will be created. Required for: create."),
-      name: z.string().optional().describe("Name of the child test suite. Required for: create."),
-      suiteId: z.coerce.number().min(1).optional().describe("The ID of the test suite. Required for: add_test_cases."),
-      testCaseIds: z.string().or(z.array(z.string())).optional().describe("The ID(s) of the test case(s) to add. Required for: add_test_cases."),
+      description: "Write operations for test suites. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z
+          .enum(["create", "add_test_cases"])
+          .describe("The action to perform. Options: create (create a new test suite in a test plan), add_test_cases (add existing test cases to a test suite)."),
+        project: z.string().describe("The unique identifier (ID or name) of the Azure DevOps project."),
+        planId: z.coerce.number().min(1).optional().describe("The ID of the test plan. Required for: create, add_test_cases."),
+        parentSuiteId: z.coerce.number().min(1).optional().describe("ID of the parent suite under which the new suite will be created. Required for: create."),
+        name: z.string().optional().describe("Name of the child test suite. Required for: create."),
+        suiteId: z.coerce.number().min(1).optional().describe("The ID of the test suite. Required for: add_test_cases."),
+        testCaseIds: z.string().or(z.array(z.string())).optional().describe("The ID(s) of the test case(s) to add. Required for: add_test_cases."),
+      },
+      annotations: WRITE_CREATE_ANNOTATIONS,
     },
     async ({ action, project, planId, parentSuiteId, name, suiteId, testCaseIds }) => {
       try {
@@ -344,24 +358,27 @@ function configureTestPlanTools(server: McpServer, tokenProvider: () => Promise<
   );
 
   // ─── testplan_test_case_write ─────────────────────────────────────────────────────
-  server.tool(
+  server.registerTool(
     TEST_PLAN_TOOLS.testplan_test_case_write,
-    "Write operations for test cases. Use the action parameter to specify the operation.",
     {
-      action: z.enum(["create", "update_steps"]).describe("The action to perform. Options: create (create a new test case work item), update_steps (update steps on an existing test case)."),
-      project: z.string().optional().describe("The unique identifier (ID or name) of the Azure DevOps project. Required for: create."),
-      title: z.string().optional().describe("The title of the test case. Required for: create."),
-      priority: z.coerce.number().optional().describe("The priority of the test case. Used for: create."),
-      areaPath: z.string().optional().describe("The area path for the test case. Used for: create."),
-      iterationPath: z.string().optional().describe("The iteration path for the test case. Used for: create."),
-      testsWorkItemId: z.coerce.number().min(1).optional().describe("Work item ID to set as a Microsoft.VSTS.Common.TestedBy-Reverse link. Used for: create."),
-      id: z.coerce.number().min(1).optional().describe("The ID of the test case work item to update. Required for: update_steps."),
-      steps: z
-        .string()
-        .optional()
-        .describe(
-          "The steps for the test case. Format each step as '1. Step one|Expected result one\n2. Step two|Expected result two'. Use '|' as the delimiter between step and expected result. Required for: update_steps. Used for: create."
-        ),
+      description: "Write operations for test cases. Use the action parameter to specify the operation.",
+      inputSchema: {
+        action: z.enum(["create", "update_steps"]).describe("The action to perform. Options: create (create a new test case work item), update_steps (update steps on an existing test case)."),
+        project: z.string().optional().describe("The unique identifier (ID or name) of the Azure DevOps project. Required for: create."),
+        title: z.string().optional().describe("The title of the test case. Required for: create."),
+        priority: z.coerce.number().optional().describe("The priority of the test case. Used for: create."),
+        areaPath: z.string().optional().describe("The area path for the test case. Used for: create."),
+        iterationPath: z.string().optional().describe("The iteration path for the test case. Used for: create."),
+        testsWorkItemId: z.coerce.number().min(1).optional().describe("Work item ID to set as a Microsoft.VSTS.Common.TestedBy-Reverse link. Used for: create."),
+        id: z.coerce.number().min(1).optional().describe("The ID of the test case work item to update. Required for: update_steps."),
+        steps: z
+          .string()
+          .optional()
+          .describe(
+            "The steps for the test case. Format each step as '1. Step one|Expected result one\n2. Step two|Expected result two'. Use '|' as the delimiter between step and expected result. Required for: update_steps. Used for: create."
+          ),
+      },
+      annotations: WRITE_CREATE_ANNOTATIONS,
     },
     async ({ action, project, title, steps, priority, areaPath, iterationPath, testsWorkItemId, id }) => {
       try {
